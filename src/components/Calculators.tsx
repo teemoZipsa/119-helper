@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface CalcResult {
   label: string;
@@ -16,8 +16,7 @@ function WaterPressureCalc() {
     const floorHeight = 3; // 층고 평균 3m
     const realHead = f * floorHeight; // 실양정 (m)
     const frictionLoss = realHead * 0.15; // 배관 마찰손실 (실양정의 약 15%)
-    const nozzlePressure = 3.5; // 최상층 방수압력 0.35MPa = 35m ≈ 3.5kgf/cm²
-    const nozzlePressureM = 35; // mH2O
+    const nozzlePressureM = 35; // mH2O (0.35MPa = 35m)
     const safety = (realHead + frictionLoss + nozzlePressureM) * 0.1;
     const totalHead = realHead + frictionLoss + nozzlePressureM + safety; // 총 양정 (m)
     const totalPressureMPa = (totalHead * 0.00981).toFixed(2); // MPa로 변환
@@ -164,7 +163,7 @@ function AirTankTimer() {
   };
 
   // Timer effect
-  useState(() => {
+  useEffect(() => {
     if (!isRunning || timeLeft <= 0) return;
     const interval = setInterval(() => {
       setTimeLeft(prev => {
@@ -176,7 +175,7 @@ function AirTankTimer() {
       });
     }, 1000);
     return () => clearInterval(interval);
-  });
+  }, [isRunning, timeLeft]);
 
   const stopTimer = () => {
     setIsRunning(false);
