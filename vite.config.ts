@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/119-helper/',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'production' ? '/119-helper/' : '/',
   plugins: [react()],
   server: {
     proxy: {
@@ -24,4 +24,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
