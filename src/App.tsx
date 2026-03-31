@@ -47,12 +47,16 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (regionRef.current && !regionRef.current.contains(event.target as Node)) {
         setRegionOpen(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setSettingsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -232,14 +236,23 @@ export default function App() {
 
             <button className="relative p-1.5 rounded-lg hover:bg-surface-container transition-colors">
               <span className="material-symbols-outlined text-on-surface-variant text-xl">notifications</span>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full block animate-pulse"></span>
             </button>
-            <button 
-              onClick={() => setSettingsOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-surface-container transition-colors hidden sm:block"
-            >
-              <span className="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
-            </button>
+            <div className="relative hidden sm:block" ref={settingsRef}>
+              <button 
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                className={`p-1.5 rounded-lg transition-colors ${settingsOpen ? 'bg-surface-container-high' : 'hover:bg-surface-container'}`}
+              >
+                <span className="material-symbols-outlined text-on-surface-variant text-xl">settings</span>
+              </button>
+              <SettingsModal 
+                isOpen={settingsOpen} 
+                onClose={() => setSettingsOpen(false)} 
+                city={city}
+                onCityChange={handleCityChange}
+                cityNames={cityNames}
+              />
+            </div>
           </div>
         </header>
 
@@ -248,15 +261,6 @@ export default function App() {
           {renderContent()}
         </div>
       </main>
-
-      {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={settingsOpen} 
-        onClose={() => setSettingsOpen(false)} 
-        city={city}
-        onCityChange={handleCityChange}
-        cityNames={cityNames}
-      />
     </div>
   );
 }

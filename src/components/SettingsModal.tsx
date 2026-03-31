@@ -30,9 +30,9 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-4 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container-low">
+    <div className="absolute right-0 top-full mt-2 z-50 p-2">
+      <div className="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-xl w-80 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="p-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container">
           <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">settings</span>
             환경 설정
