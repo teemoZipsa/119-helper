@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# 🚒 119 Helper Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+소방 및 구급 대원분들의 신속한 출동과 현장 상황 파악을 지원하기 위한 종합 정보 대시보드입니다. 모바일 기기와 데스크탑 환경 모두에서 완벽하게 동작하는 능동 반응형(Responsive) 웹으로 제작되었습니다.
 
-Currently, two official plugins are available:
+🔗 **라이브 배포 주소:** [https://119helper.github.io/](https://119helper.github.io/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🚀 지금까지 완료된 작업 (현재 상황)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- [x] **공공기관 보안 네트워크 대응 (호스팅 이전)**
+  - 개인 계정에서 조직(Organization) 도메인인 `119helper.github.io`로 완전히 이전하여 공공 망 접근성을 확보했습니다.
+- [x] **기상청 API 연동 및 CORS 보안 우회 완비**
+  - 기상청 API 데이터 직결 시 발생하는 브라우저 CORS 차단 문제를 우회 프록시 서버(`api.allorigins.win`)를 통해 깔끔하게 해결했습니다.
+  - 현재 선택된 관심 지역의 날씨, 기온, 중기 예보 등이 실시간 반영됩니다.
+- [x] **응급의료포털 (국립중앙의료원) 데이터 연동**
+  - 주변 응급 병상의 실시간 잔여 상황 및 상태 데이터를 받아옵니다.
+- [x] **모던 UI/UX 개편 & 반응형 최적화**
+  - 못생긴 기본 `<select>` 지역 선택창을 커스텀 디자인된 다크 모드 드롭다운 메뉴로 교체.
+  - 긴급 알림음 On/Off, 자동 새로고침 주기, 기본 화면 지역을 설정할 수 있는 환경 설정 패널 도입.
+  - 추후 특보 알림을 뿌려주기 위한 상단(종 모양) 우측 알림창 UI 디자인 초안 적용.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🗓️ 내일 출근 후 해야 할 일 (To-Do & API 신청 내역)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+현재 "급수탑/저수조", "소화전" 등 화면에 뜨는 좌표와 마커들은 전부 "서울 지역 뼈대(Mock/가짜) 데이터" 로 임시 구현되어 있습니다. 내일 실제 연동을 위해 다음 API 키가 필요합니다.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- [ ] **✅ 전국 소방용수시설 (소화전/비상소화장치 등) 데이터 실제 연동하기**
+  - **할 일:** 공공데이터 포털(data.go.kr)에 접속 후 **`소방청_소방용수시설 정보`** (또는 이와 유사한 소방청 공식 API) "활용 신청" 후 API Key 발급받기.
+  - 키를 알려주시면 즉시 Mock 데이터 코드를 날려버리고 진짜 지도로 전면 교체합니다!
+- [ ] **✅ 실시간 푸시(Push) 알림 로직 심기**
+  - 우측 상단 종 모양 알림창(현재 Mock UI)에 들어갈 데이터 소스 결정 (예: 진짜 날씨 재난 알림이나 대형 환자 수용 상황 등).
+- [ ] **✅ Zustand 상태 관리 고도화 및 세부 병원 필터링 구현**
+  - 지난번에 구상만 해둔 Zustand 스토어 확장을 기반으로 더 빠른 데이터 캐싱 처리.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+> 💡 **개발자 노트:** 내일 회사 컴퓨터에서 추가 작업을 이어가실 때, `git pull` 을 받거나 깃허브 원격 저장소를 열어보시면 이 문서를 바로 확인하실 수 있습니다. 편안한 밤 되시고 푹 주무세요! 🌙
