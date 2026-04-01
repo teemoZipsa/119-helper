@@ -37,6 +37,7 @@ declare global {
 export default function KakaoMap({ data, city, height = '300px', selectedId }: KakaoMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const clustererRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const overlaysRef = useRef<Map<string, any>>(new Map());
 
@@ -57,7 +58,29 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     const zoomControl = new window.kakao.maps.ZoomControl();
     map.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
 
+    // 마커 클러스터러 초기화
+    const clusterer = new window.kakao.maps.MarkerClusterer({
+      map: map,
+      averageCenter: true,
+      minLevel: 7,
+      disableClickZoom: false,
+      styles: [{
+        width: '40px', height: '40px',
+        background: 'rgba(239, 68, 68, 0.9)',
+        borderRadius: '50%',
+        color: '#fff',
+        textAlign: 'center',
+        fontWeight: 'bold',
+        lineHeight: '40px',
+        fontSize: '14px',
+        border: '2px solid rgba(255,255,255,0.5)',
+        boxShadow: '0 4px 12px rgba(239,68,68,0.3)'
+      }]
+    });
+    clustererRef.current = clusterer;
+
     return () => {
+      clustererRef.current?.clear();
       markersRef.current = new Map();
       overlaysRef.current = new Map();
     };
@@ -76,10 +99,13 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     const map = mapRef.current;
 
     // 기존 마커/오버레이 제거
+    clustererRef.current?.clear();
     markersRef.current.forEach(m => m.setMap(null));
     overlaysRef.current.forEach(o => o.setMap(null));
     markersRef.current = new Map();
     overlaysRef.current = new Map();
+
+    const newMarkers: any[] = [];
 
     data.forEach(item => {
       const position = new window.kakao.maps.LatLng(item.lat, item.lng);
@@ -166,7 +192,12 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
 
       markersRef.current.set(item.id, marker);
       overlaysRef.current.set(item.id, overlay);
+      newMarkers.push(marker);
     });
+
+    if (clustererRef.current) {
+      clustererRef.current.addMarkers(newMarkers);
+    }
 
     // Bounds 맞추기 (데이터가 있을 때)
     if (data.length > 0) {

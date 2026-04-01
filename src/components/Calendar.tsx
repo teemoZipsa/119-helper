@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getHolidays, buildHolidayMap } from '../services/holidayApi';
 
 interface Schedule {
@@ -57,9 +57,22 @@ export default function Calendar() {
 
   // 공휴일 데이터
   const [holidays, setHolidays] = useState<Map<string, string[]>>(new Map());
+  const loadedMonths = useRef<Set<string>>(new Set());
+
   useEffect(() => {
+    const monthKey = `${year}-${month + 1}`;
+    if (loadedMonths.current.has(monthKey)) return;
+
     getHolidays(year, month + 1).then(items => {
-      setHolidays(buildHolidayMap(items));
+      loadedMonths.current.add(monthKey);
+      setHolidays(prev => {
+        const nextMap = new Map(prev);
+        const newMap = buildHolidayMap(items);
+        newMap.forEach((val, key) => {
+          nextMap.set(key, val);
+        });
+        return nextMap;
+      });
     });
   }, [year, month]);
 

@@ -1,4 +1,5 @@
-import { MOCK_HYDRANTS, MOCK_WATER_TOWERS, MOCK_WEATHER, MOCK_ER_DATA } from '../data/mockData';
+import { MOCK_WEATHER, MOCK_ER_DATA } from '../data/mockData';
+import type { FireFacility } from '../data/mockData';
 
 type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar';
 
@@ -10,11 +11,16 @@ const cityNames: Record<string, string> = {
 interface DashboardProps {
   onNavigate: (tab: TabId) => void;
   city: string;
+  fireFacilities: FireFacility[];
+  isLoadingFacilities: boolean;
 }
 
-export default function DashboardView({ onNavigate, city }: DashboardProps) {
+export default function DashboardView({ onNavigate, city, fireFacilities, isLoadingFacilities }: DashboardProps) {
   const w = MOCK_WEATHER;
   const cityLabel = cityNames[city] || '서울';
+  
+  const hydrantsCount = fireFacilities.filter(f => f.type === '소화전').length;
+  const towersCount = fireFacilities.filter(f => f.type !== '소화전').length;
 
   return (
     <div className="space-y-6">
@@ -112,14 +118,18 @@ export default function DashboardView({ onNavigate, city }: DashboardProps) {
 
           {/* Quick Stats Row */}
           <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => onNavigate('hydrants')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group">
+            <button onClick={() => onNavigate('hydrants')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group relative overflow-hidden">
               <span className="material-symbols-outlined text-primary text-xl group-hover:scale-110 transition-transform">fire_hydrant</span>
-              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">{MOCK_HYDRANTS.length}</p>
+              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">
+                {isLoadingFacilities ? <span className="text-sm font-medium animate-pulse text-on-surface-variant">불러오는 중...</span> : hydrantsCount}
+              </p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">소화전</p>
             </button>
-            <button onClick={() => onNavigate('waterTowers')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group">
+            <button onClick={() => onNavigate('waterTowers')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group relative overflow-hidden">
               <span className="material-symbols-outlined text-secondary text-xl group-hover:scale-110 transition-transform">water_pump</span>
-              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">{MOCK_WATER_TOWERS.length}</p>
+              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">
+                {isLoadingFacilities ? <span className="text-sm font-medium animate-pulse text-on-surface-variant">불러오는 중...</span> : towersCount}
+              </p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">급수탑/저수조</p>
             </button>
           </div>

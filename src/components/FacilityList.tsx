@@ -8,9 +8,10 @@ interface Props {
   icon: string;
   typeLabel: string;
   city: string;
+  isLoading?: boolean;
 }
 
-export default function FacilityList({ data, title, icon, typeLabel, city }: Props) {
+export default function FacilityList({ data, title, icon, typeLabel, city, isLoading = false }: Props) {
   const [search, setSearch] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('전체');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -46,10 +47,14 @@ export default function FacilityList({ data, title, icon, typeLabel, city }: Pro
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-xl md:text-2xl font-extrabold text-on-surface font-headline">{icon} {title}</h2>
-          <p className="text-sm text-on-surface-variant mt-1">{typeLabel} 위치 정보 {city !== 'seoul' && '— 현재 서울 Mock 데이터만 표시됩니다'}</p>
+          <p className="text-sm text-on-surface-variant mt-1">{typeLabel} 위치 정보</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-on-surface-variant">총 <span className="font-bold text-primary">{filtered.length}</span>건</span>
+          {isLoading ? (
+            <span className="text-sm text-on-surface-variant font-bold animate-pulse">데이터 로딩 중...</span>
+          ) : (
+            <span className="text-sm text-on-surface-variant">총 <span className="font-bold text-primary">{filtered.length}</span>건</span>
+          )}
         </div>
       </div>
 
@@ -175,7 +180,14 @@ export default function FacilityList({ data, title, icon, typeLabel, city }: Pro
           ))}
         </div>
 
-        {filtered.length === 0 && (
+        {isLoading && (
+          <div className="p-12 text-center text-on-surface-variant">
+            <span className="material-symbols-outlined text-4xl animate-spin text-primary">progress_activity</span>
+            <p className="mt-2 font-bold animate-pulse">공공데이터 불러오는 중...</p>
+          </div>
+        )}
+
+        {!isLoading && filtered.length === 0 && (
           <div className="p-12 text-center text-on-surface-variant">
             <span className="material-symbols-outlined text-4xl opacity-30">search_off</span>
             <p className="mt-2">검색 결과가 없습니다</p>

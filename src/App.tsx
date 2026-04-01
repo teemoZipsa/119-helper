@@ -10,8 +10,8 @@ import DashboardView from './components/DashboardView';
 import BuildingView from './components/BuildingView';
 import GlobalSearch from './components/GlobalSearch';
 import SettingsModal from './components/SettingsModal';
-import { MOCK_HYDRANTS, MOCK_WATER_TOWERS } from './data/mockData';
-
+import { fetchFireWaterFacilities } from './services/fireWaterApi';
+import type { FireFacility } from './data/mockData';
 type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar';
 
 interface NavItem {
@@ -42,6 +42,8 @@ const cityNames: Record<string, string> = {
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [city, setCity] = useState<string>(() => localStorage.getItem('119helper-city') || 'seoul');
+  const [fireFacilities, setFireFacilities] = useState<FireFacility[]>([]);
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<'loading' | 'granted' | 'denied' | 'idle'>('idle');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -103,23 +105,56 @@ export default function App() {
     localStorage.setItem('119helper-city', newCity);
   };
 
+  useEffect(() => {
+    setIsLoadingFacilities(true);
+    fetchFireWaterFacilities(city).then(items => {
+      const parsed: FireFacility[] = items.map((item, idx) => {
+        let status: '정상' | '점검필요' | '고장' = '정상';
+        if (item.insptnSttusNm?.includes('고장')) status = '고장';
+        else if (item.insptnSttusNm?.includes('점검')) status = '점검필요';
+
+        // type fallback
+        let type: '소화전' | '급수탑' | '저수조' | '비상소화장치' = '소화전';
+        if (item.fcltyKndNm?.includes('급수탑')) type = '급수탑';
+        else if (item.fcltyKndNm?.includes('저수조')) type = '저수조';
+        else if (item.fcltyKndNm?.includes('비상소화장치')) type = '비상소화장치';
+
+        return {
+          id: item.fcltyNo || `FW-${idx}`,
+          type,
+          address: item.rdnmadr || item.lnmadr || '주소 미상',
+          lat: parseFloat(item.latitude || '0'),
+          lng: parseFloat(item.longitude || '0'),
+          district: item.signguNm || '알수없음',
+          status
+        };
+      }).filter(i => i.lat > 0 && i.lng > 0);
+
+      setFireFacilities(parsed);
+      setIsLoadingFacilities(false);
+    });
+  }, [city]);
+
   const handleNavigate = (tab: TabId) => {
     setActiveTab(tab);
     setSidebarOpen(false); // 모바일에서 탭 변경 시 사이드바 닫기
   };
 
   const renderContent = () => {
+    const hydrants = fireFacilities.filter(f => f.type === '소화전');
+    const waterTowers = fireFacilities.filter(f => f.type !== '소화전');
+
     switch (activeTab) {
-      case 'dashboard': return <DashboardView onNavigate={handleNavigate} city={city} />;
+      case 'dashboard': return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} />;
       case 'weather': return <WeatherDashboard city={city} />;
-      case 'hydrants': return <FacilityList data={MOCK_HYDRANTS} title="소화전 위치" icon="🚒" typeLabel="소화전" city={city} />;
-      case 'waterTowers': return <FacilityList data={MOCK_WATER_TOWERS} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑/저수조/비상소화장치" city={city} />;
+      case 'hydrants': return <FacilityList data={hydrants} title="소화전 위치" icon="🚒" typeLabel="소화전" city={city} isLoading={isLoadingFacilities} />;
+      case 'waterTowers': return <FacilityList data={waterTowers} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑/저수조/비상소화장치" city={city} isLoading={isLoadingFacilities} />;
       case 'er': return <ERDashboard city={city} />;
       case 'building': return <BuildingView />;
       case 'calculator': return <Calculators />;
       case 'calendar': return <Calendar />;
       case 'memo': return <StickyNotes />;
-      default: return <DashboardView onNavigate={handleNavigate} city={city} />;
+      default: return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} />;
     }
   };
 
