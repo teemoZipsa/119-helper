@@ -97,34 +97,6 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     };
   }, [sdkReady]);
 
-  // SDK 에러 시 UI
-  if (sdkError) {
-    return (
-      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
-        <div className="text-center p-6">
-          <span className="material-symbols-outlined text-error text-3xl">map</span>
-          <p className="text-sm text-on-surface-variant mt-2">카카오맵 SDK 로드 실패</p>
-          <p className="text-xs text-on-surface-variant/60 mt-1">{sdkError}</p>
-          <button
-            onClick={() => { setSdkError(''); retryKakaoLoad().then(() => setSdkReady(true)).catch(e => setSdkError(e.message)); }}
-            className="mt-3 px-4 py-1.5 text-xs font-bold bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            재시도
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!sdkReady) {
-    return (
-      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
-        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
-        <span className="ml-2 text-xs text-on-surface-variant">카카오맵 로딩 중...</span>
-      </div>
-    );
-  }
-
   // 도시 변경 시 중심 이동
   useEffect(() => {
     if (!mapRef.current) return;
@@ -262,6 +234,34 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     overlay.setMap(mapRef.current);
     mapRef.current.panTo(marker.getPosition());
   }, [selectedId]);
+
+  // SDK 에러 시 UI
+  if (sdkError) {
+    return (
+      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
+        <div className="text-center p-6">
+          <span className="material-symbols-outlined text-error text-3xl">map</span>
+          <p className="text-sm text-on-surface-variant mt-2">카카오맵 SDK 로드 실패</p>
+          <p className="text-xs text-on-surface-variant/60 mt-1">{sdkError}</p>
+          <button
+            onClick={() => { setSdkError(''); retryKakaoLoad().then(() => setSdkReady(true)).catch(e => setSdkError(e.message)); }}
+            className="mt-3 px-4 py-1.5 text-xs font-bold bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            재시도
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sdkReady) {
+    return (
+      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
+        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
+        <span className="ml-2 text-xs text-on-surface-variant">카카오맵 로딩 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div
