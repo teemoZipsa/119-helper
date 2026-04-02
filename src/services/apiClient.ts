@@ -97,3 +97,15 @@ export async function fetchHolidays(year: number, month: number) {
 export async function fetchConfig() {
   return apiFetch<{ kakaoMapKey: string }>('/api/config');
 }
+
+// ═══════ 대피소 (지진해일) ═══════
+
+export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRows = '100', pageNo = '1') {
+  return apiFetch<any[]>('/api/shelter', { ctprvnNm, signguNm: signguNm || '', numOfRows, pageNo });
+}
+
+// ═══════ 다중이용업소 ═══════
+
+export async function fetchMultiUseFacilities(ctprvnNm: string, signguNm?: string) {
+  return apiFetch<any[]>('/api/multiuse', { ctprvnNm, signguNm: signguNm || '' });
+}

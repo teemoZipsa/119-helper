@@ -13,6 +13,7 @@ import { handleBuilding } from './routes/building';
 import { handleFireWater } from './routes/firewater';
 import { handleHoliday } from './routes/holiday';
 import { handleMultiUse } from './routes/multiuse';
+import { handleShelter } from './routes/shelter';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -23,6 +24,7 @@ export interface Env {
   HOLIDAY_API_KEY: string;
   KAKAO_MAP_KEY: string;
   MULTI_USE_API_KEY: string;
+  SHELTER_API_KEY: string;
   ENVIRONMENT: string;
 }
 
@@ -113,6 +115,12 @@ export default {
       // ═══════ 다중이용업소 ═══════
       if (path === '/api/multiuse') {
         const result = await handleMultiUse(url, env.MULTI_USE_API_KEY);
+        return jsonResponse(result.data, request, 200, result.cacheTtl);
+      }
+
+      // ═══════ 대피소 (지진해일) ═══════
+      if (path === '/api/shelter') {
+        const result = await handleShelter(url, env.SHELTER_API_KEY);
         return jsonResponse(result.data, request, 200, result.cacheTtl);
       }
 
