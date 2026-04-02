@@ -158,3 +158,45 @@ export async function fetchEmergencyInfo(op: string, params?: Record<string, str
 export async function fetchFireInfo(op: string, params?: Record<string, string>) {
   return apiFetch<{ items: any[]; totalCount: number }>(`/api/fire/${op}`, params);
 }
+
+// ═══════ 연간화재통계 ═══════
+
+export interface AnnualFireStatsResponse {
+  year: string;
+  totalRecords: number;
+  summary: {
+    totalFires: number;
+    totalDeaths: number;
+    totalInjuries: number;
+    totalCasualties: number;
+    totalPropertyDamage: number;
+  };
+  bySido: { name: string; count: number }[];
+  byFireType: { name: string; count: number }[];
+  byPlace: { name: string; count: number }[];
+  byCause: { name: string; count: number }[];
+  byMonth: { month: string; count: number }[];
+  casualtiesBySido: { name: string; deaths: number; injuries: number }[];
+}
+
+export async function fetchAnnualFireStats(year: string): Promise<AnnualFireStatsResponse> {
+  // 대량 데이터 집계이므로 30초 타임아웃
+  const url = new URL(`${API_BASE}/api/fire-annual/${year}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(humanizeApiError(res.status, body));
+    }
+    return res.json();
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') {
+      throw new Error('연간화재통계 데이터 집계 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+    }
+    throw err;
+  }
+}

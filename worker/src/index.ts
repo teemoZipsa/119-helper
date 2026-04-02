@@ -17,6 +17,7 @@ import { handleShelter } from './routes/shelter';
 import { handleEmergencyStats } from './routes/emergencyStats';
 import { handleEmergencyInfo } from './routes/emergencyInfo';
 import { handleFireInfo } from './routes/fireInfo';
+import { handleAnnualFireStats } from './routes/annualFireStats';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -30,6 +31,7 @@ export interface Env {
   SHELTER_API_KEY: string;
   EMERGENCY_API_KEY: string;
   FIRE_INFO_API_KEY: string;
+  ANNUAL_FIRE_API_KEY: string;
   ENVIRONMENT: string;
 }
 
@@ -72,6 +74,7 @@ export default {
             multiUse: !!env.MULTI_USE_API_KEY,
             emergency: !!env.EMERGENCY_API_KEY,
             fireInfo: !!env.FIRE_INFO_API_KEY,
+            annualFire: !!env.ANNUAL_FIRE_API_KEY,
           }
         }, request);
       }
@@ -146,6 +149,12 @@ export default {
       // ═══════ 화재정보 ═══════
       if (path.startsWith('/api/fire/')) {
         const result = await handleFireInfo(path, url, env.FIRE_INFO_API_KEY);
+        return jsonResponse(result.data, request, 200, result.cacheTtl);
+      }
+
+      // ═══════ 연간화재통계 ═══════
+      if (path.startsWith('/api/fire-annual/')) {
+        const result = await handleAnnualFireStats(path, url, env.ANNUAL_FIRE_API_KEY);
         return jsonResponse(result.data, request, 200, result.cacheTtl);
       }
 

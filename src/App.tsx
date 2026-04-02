@@ -15,11 +15,12 @@ import GlobalSearch from './components/GlobalSearch';
 import SettingsModal from './components/SettingsModal';
 import MultiUseView from './components/MultiUseView';
 import HazmatView from './components/HazmatView';
+import AnnualFireView from './components/AnnualFireView';
 import { fetchFireWaterFacilities } from './services/fireWaterApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS } from './services/weatherApi';
 import { getRealtimeAirQuality } from './services/airQualityApi';
 import type { FireFacility } from './data/mockData';
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire';
 
 // 알림 시스템 타입
 interface Notification {
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'building', icon: 'apartment', label: '건축물대장' },
   { id: 'multiuse', icon: 'store', label: '다중이용업소' },
   { id: 'hazmat', icon: 'warning', label: '위험물시설' },
+  { id: 'annual-fire', icon: 'bar_chart', label: '연간화재통계' },
   { id: 'shelter', icon: 'emergency', label: '대피소' },
   { id: 'emergency', icon: 'ambulance', label: '구급 분석' },
   { id: 'fire-analysis', icon: 'local_fire_department', label: '화재 분석' },
@@ -95,6 +97,35 @@ export default function App() {
   const regionRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const notiRef = useRef<HTMLDivElement>(null);
+
+  // ─── 테마 시스템 ───
+  const [theme, setTheme] = useState<string>(() => localStorage.getItem('119helper-theme') || 'system');
+
+  const applyTheme = useCallback((t: string) => {
+    let resolved = t;
+    if (t === 'system') {
+      resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', resolved);
+  }, []);
+
+  // 마운트 시 + 테마 변경 시 적용
+  useEffect(() => {
+    applyTheme(theme);
+    // 시스템 테마 변경 감지
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: light)');
+      const handler = () => applyTheme('system');
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [theme, applyTheme]);
+
+  const handleThemeChange = useCallback((t: string) => {
+    setTheme(t);
+    localStorage.setItem('119helper-theme', t);
+    applyTheme(t);
+  }, [applyTheme]);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -295,6 +326,7 @@ export default function App() {
       case 'fire-analysis': return <FireAnalysis />;
       case 'multiuse': return <MultiUseView city={city} />;
       case 'hazmat': return <HazmatView />;
+      case 'annual-fire': return <AnnualFireView />;
       case 'calculator': return <Calculators />;
       case 'calendar': return <Calendar />;
       case 'memo': return <StickyNotes />;
@@ -349,14 +381,25 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-outline-variant/20 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center">
-            <span className="material-symbols-outlined text-on-surface-variant text-lg">person</span>
+        <div className="p-4 border-t border-outline-variant/20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center">
+              <span className="material-symbols-outlined text-on-surface-variant text-lg">person</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-on-surface">소방관</p>
+              <p className="text-[10px] text-on-surface-variant">사용자</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold text-on-surface">소방관</p>
-            <p className="text-[10px] text-on-surface-variant">사용자</p>
-          </div>
+          <button
+            onClick={() => handleThemeChange(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
+            className="p-2 rounded-lg hover:bg-surface-container-high transition-colors"
+            title={`현재: ${theme === 'dark' ? '다크' : theme === 'light' ? '라이트' : '시스템'} 모드`}
+          >
+            <span className="material-symbols-outlined text-on-surface-variant text-lg"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >{theme === 'dark' ? 'dark_mode' : theme === 'light' ? 'light_mode' : 'settings_suggest'}</span>
+          </button>
         </div>
       </aside>
 
@@ -501,6 +544,8 @@ export default function App() {
                 city={city}
                 onCityChange={handleCityChange}
                 cityNames={cityNames}
+                theme={theme}
+                onThemeChange={handleThemeChange}
               />
             </div>
           </div>

@@ -18,3 +18,8 @@ ENVIRONMENT = "production"
 # wrangler secret put FIRE_WATER_API_KEY
 # wrangler secret put HOLIDAY_API_KEY
 # wrangler secret put KAKAO_MAP_KEY
+# wrangler secret put MULTI_USE_API_KEY
+# wrangler secret put SHELTER_API_KEY
+# wrangler secret put EMERGENCY_API_KEY
+# wrangler secret put FIRE_INFO_API_KEY
+# wrangler secret put ANNUAL_FIRE_API_KEY

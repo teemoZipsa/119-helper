@@ -6,24 +6,31 @@ interface SettingsModalProps {
   city: string;
   onCityChange: (c: string) => void;
   cityNames: Record<string, string>;
+  theme: string;
+  onThemeChange: (t: string) => void;
 }
 
-export default function SettingsModal({ isOpen, onClose, city, onCityChange, cityNames }: SettingsModalProps) {
+const THEME_OPTIONS = [
+  { value: 'dark', label: '다크 모드', icon: 'dark_mode', desc: '어두운 배경에 밝은 텍스트' },
+  { value: 'light', label: '라이트 모드', icon: 'light_mode', desc: '밝은 배경에 어두운 텍스트' },
+  { value: 'system', label: '시스템 설정', icon: 'settings_suggest', desc: 'OS 설정에 따라 자동 전환' },
+];
+
+export default function SettingsModal({ isOpen, onClose, city, onCityChange, cityNames, theme, onThemeChange }: SettingsModalProps) {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState('5');
-  const [theme, setTheme] = useState('dark');
+  const [localTheme, setLocalTheme] = useState(theme);
 
   useEffect(() => {
     setSoundEnabled(localStorage.getItem('119helper-sound') === 'true');
     setRefreshInterval(localStorage.getItem('119helper-refresh') || '5');
-    setTheme(localStorage.getItem('119helper-theme') || 'dark');
-  }, [isOpen]);
+    setLocalTheme(theme);
+  }, [isOpen, theme]);
 
   const handleSave = () => {
     localStorage.setItem('119helper-sound', soundEnabled.toString());
     localStorage.setItem('119helper-refresh', refreshInterval);
-    localStorage.setItem('119helper-theme', theme);
-    // 향후 다크/라이트 모드 지원을 위한 플러그
+    onThemeChange(localTheme);
     onClose();
   };
 
@@ -43,7 +50,30 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
         </div>
         
         <div className="p-5 space-y-6">
-          {/* Section 1 */}
+          {/* Theme Section */}
+          <div>
+            <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3 block">테마 설정</label>
+            <div className="grid grid-cols-3 gap-2">
+              {THEME_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setLocalTheme(opt.value)}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
+                    localTheme === opt.value
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-outline-variant/20 text-on-surface-variant hover:bg-surface-container'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-xl"
+                    style={localTheme === opt.value ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                  >{opt.icon}</span>
+                  <span className="text-[10px] font-bold">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 1: Notification */}
           <div>
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3 block">알림 설정</label>
             <div className="flex items-center justify-between">
@@ -60,7 +90,7 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
             </div>
           </div>
 
-          {/* Section 2 */}
+          {/* Section 2: Data */}
           <div>
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3 block">데이터 설정</label>
             <div className="space-y-4">
