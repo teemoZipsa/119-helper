@@ -185,7 +185,8 @@ export async function fetchAnnualFireStats(year: string): Promise<AnnualFireStat
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {
-    const res = await fetch(url.toString(), { signal: controller.signal });
+    url.searchParams.set('_t', Date.now().toString()); // cache bust
+    const res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) {
       const body = await res.text().catch(() => '');
