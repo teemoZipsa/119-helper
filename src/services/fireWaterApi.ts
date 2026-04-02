@@ -1,6 +1,4 @@
-// 소방용수시설 API — Cloudflare Worker 프록시 경유
-
-import { fetchFireWater } from './apiClient';
+// 소방용수시설 API — 로컬 정적 데이터 (소방청_소방용수시설 CSV 추출 기반)
 
 export interface FireWaterFacility {
   fcltyNo?: string;
@@ -11,6 +9,7 @@ export interface FireWaterFacility {
   latitude?: string;
   longitude?: string;
   fcltyKndNm?: string;
+  fcltySeNm?: string;
   insptnSttusNm?: string;
 }
 
@@ -23,12 +22,13 @@ export async function fetchFireWaterFacilities(cityQuery: string): Promise<FireW
   const searchCity = cityMap[cityQuery] || '서울특별시';
 
   try {
-    const items = await fetchFireWater(searchCity) as FireWaterFacility[];
-    return items.filter((item: FireWaterFacility) =>
-      (item.ctprvnNm && item.ctprvnNm.includes(searchCity)) ||
-      (item.rdnmadr && item.rdnmadr.includes(searchCity)) ||
-      (item.lnmadr && item.lnmadr.includes(searchCity))
-    );
+    const res = await fetch(`/firewater/${searchCity}.json`);
+    if (!res.ok) {
+      if (res.status === 404) console.warn(`지역 데이터 없음: ${searchCity}`);
+      return [];
+    }
+    const json = await res.json();
+    return json?.response?.body?.items || [];
   } catch (err) {
     console.error('소방용수시설 데이터 로드 실패:', err);
     return [];
