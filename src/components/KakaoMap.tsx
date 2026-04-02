@@ -1,5 +1,6 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import type { FireFacility } from '../data/mockData';
+import { loadKakaoMapSDK, retryKakaoLoad } from '../utils/kakaoLoader';
 
 // 도시별 중심 좌표
 const CITY_CENTERS: Record<string, { lat: number; lng: number }> = {
@@ -40,10 +41,20 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
   const clustererRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const overlaysRef = useRef<Map<string, any>>(new Map());
+  const [sdkReady, setSdkReady] = useState(!!window.kakao?.maps);
+  const [sdkError, setSdkError] = useState('');
 
-  // 지도 초기화
+  // SDK 동적 로드
   useEffect(() => {
-    if (!containerRef.current || !window.kakao?.maps) return;
+    if (sdkReady) return;
+    loadKakaoMapSDK()
+      .then(() => setSdkReady(true))
+      .catch(err => setSdkError(err.message));
+  }, [sdkReady]);
+
+  // 지도 초기화 (SDK 로드 완료 후)
+  useEffect(() => {
+    if (!sdkReady || !containerRef.current || !window.kakao?.maps) return;
 
     const center = CITY_CENTERS[city] || CITY_CENTERS.seoul;
     const options = {
@@ -84,7 +95,35 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
       markersRef.current = new Map();
       overlaysRef.current = new Map();
     };
-  }, []);
+  }, [sdkReady]);
+
+  // SDK 에러 시 UI
+  if (sdkError) {
+    return (
+      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
+        <div className="text-center p-6">
+          <span className="material-symbols-outlined text-error text-3xl">map</span>
+          <p className="text-sm text-on-surface-variant mt-2">카카오맵 SDK 로드 실패</p>
+          <p className="text-xs text-on-surface-variant/60 mt-1">{sdkError}</p>
+          <button
+            onClick={() => { setSdkError(''); retryKakaoLoad().then(() => setSdkReady(true)).catch(e => setSdkError(e.message)); }}
+            className="mt-3 px-4 py-1.5 text-xs font-bold bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            재시도
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sdkReady) {
+    return (
+      <div style={{ width: '100%', height }} className="rounded-xl overflow-hidden bg-surface-container flex items-center justify-center">
+        <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full"></div>
+        <span className="ml-2 text-xs text-on-surface-variant">카카오맵 로딩 중...</span>
+      </div>
+    );
+  }
 
   // 도시 변경 시 중심 이동
   useEffect(() => {

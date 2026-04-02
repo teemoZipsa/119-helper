@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { FireFacility } from '../data/mockData';
 import KakaoMap from './KakaoMap';
 
@@ -15,23 +15,6 @@ export default function FacilityList({ data, title, icon, typeLabel, city, isLoa
   const [search, setSearch] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('전체');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mapStatus, setMapStatus] = useState<'loading' | 'loaded' | 'failed'>(() => window.kakao?.maps ? 'loaded' : 'loading');
-
-  useEffect(() => {
-    if (mapStatus === 'loaded') return;
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      if (window.kakao?.maps) {
-        setMapStatus('loaded');
-        clearInterval(interval);
-      } else if (attempts > 20) { // 10초 후 포기
-        setMapStatus('failed');
-        clearInterval(interval);
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [mapStatus]);
 
   const districts = ['전체', ...Array.from(new Set(data.map(d => d.district)))];
 
@@ -75,45 +58,26 @@ export default function FacilityList({ data, title, icon, typeLabel, city, isLoa
         </div>
       </div>
 
-      {/* KakaoMap */}
+      {/* KakaoMap — 자체 로딩/에러 상태 관리 */}
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden relative">
-        {mapStatus === 'loaded' ? (
-          <>
-            <KakaoMap data={filtered} city={city} height="300px" selectedId={selectedId} />
-            {/* Status overlay */}
-            <div className="absolute top-4 left-4 z-10 bg-surface-container-lowest/90 backdrop-blur-sm p-3 rounded-xl border border-outline-variant/20">
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                  <span className="text-on-surface-variant">정상 {data.filter(d => d.status === '정상').length}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-                  <span className="text-on-surface-variant">점검필요 {data.filter(d => d.status === '점검필요').length}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                  <span className="text-on-surface-variant">고장 {data.filter(d => d.status === '고장').length}</span>
-                </div>
-              </div>
+        <KakaoMap data={filtered} city={city} height="300px" selectedId={selectedId} />
+        {/* Status overlay */}
+        <div className="absolute top-4 left-4 z-10 bg-surface-container-lowest/90 backdrop-blur-sm p-3 rounded-xl border border-outline-variant/20">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-400"></span>
+              <span className="text-on-surface-variant">정상 {data.filter(d => d.status === '정상').length}</span>
             </div>
-          </>
-        ) : mapStatus === 'loading' ? (
-          <div className="h-[300px] flex items-center justify-center bg-surface-dim">
-            <div className="text-center animate-pulse">
-              <span className="material-symbols-outlined text-4xl text-primary/50 animate-spin">progress_activity</span>
-              <p className="text-on-surface-variant font-bold mt-2">지도 불러오는 중...</p>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+              <span className="text-on-surface-variant">점검필요 {data.filter(d => d.status === '점검필요').length}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-400"></span>
+              <span className="text-on-surface-variant">고장 {data.filter(d => d.status === '고장').length}</span>
             </div>
           </div>
-        ) : (
-          <div className="h-[300px] flex items-center justify-center bg-surface-dim">
-            <div className="text-center">
-              <span className="material-symbols-outlined text-5xl text-outline/40">map</span>
-              <p className="text-on-surface-variant text-sm mt-2">카카오맵 SDK 로드 실패</p>
-              <p className="text-outline text-xs mt-1">네트워크 연결 또는 AdBlock을 확인해주세요</p>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Filters */}
