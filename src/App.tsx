@@ -155,12 +155,15 @@ export default function App() {
         let status: '정상' | '점검필요' | '고장' = '정상';
         if (item.insptnSttusNm?.includes('고장')) status = '고장';
         else if (item.insptnSttusNm?.includes('점검')) status = '점검필요';
+        
+        const kindRaw = item.fcltyKndNm || item.fcltySeNm || item.fcltyTyNm || '';
         let type: '소화전' | '급수탑' | '저수조' | '비상소화장치' = '소화전';
-        if (item.fcltyKndNm?.includes('급수탑')) type = '급수탑';
-        else if (item.fcltyKndNm?.includes('저수조')) type = '저수조';
-        else if (item.fcltyKndNm?.includes('비상소화장치')) type = '비상소화장치';
+        if (kindRaw.includes('급수탑')) type = '급수탑';
+        else if (kindRaw.includes('저수조')) type = '저수조';
+        else if (kindRaw.includes('비상소화장치')) type = '비상소화장치';
+        
         return {
-          id: item.fcltyNo || `FW-${idx}`,
+          id: item.fcltyNo || item.fcltyNm || `FW-${idx}`,
           type,
           address: item.rdnmadr || item.lnmadr || '주소 미상',
           lat: parseFloat(item.latitude || '0'),
