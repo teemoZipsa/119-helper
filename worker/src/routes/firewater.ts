@@ -14,7 +14,7 @@ export async function handleFireWater(url: URL, apiKey: string): Promise<{ data:
   });
 
   const res = await fetch(
-    `https://api.data.go.kr/openapi/tn_pubr_public_ffus_wtrcns_api?${params}`,
+    `http://api.data.go.kr/openapi/tn_pubr_public_ffus_wtrcns_api?${params}`,
     { headers: { 'User-Agent': '119-helper-worker/1.0' } }
   );
   if (!res.ok) throw new Error(`FireWater API ${res.status}`);
