@@ -143,6 +143,7 @@ export default function FireAnalysis() {
   const years = getRecentYears(6);
   const [selectedYear, setSelectedYear] = useState(years[1] || years[0]); // 작년 기본
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // 데이터 상태
   const [summary, setSummary] = useState({ total: 0, death: 0, injury: 0, propertyDmg: 0, selfExtinguish: 0, falseReport: 0 });
@@ -154,6 +155,7 @@ export default function FireAnalysis() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setApiError(null);
     const range = getDateRange(selectedYear);
 
     try {
@@ -165,6 +167,15 @@ export default function FireAnalysis() {
         fetchFireInfo('building', range),       // 4: 건물구조별
         fetchFireInfo('property', range),       // 5: 재산피해
       ]);
+
+      // 전체 실패 여부 확인
+      const allFailed = results.every(r => r.status === 'rejected');
+      if (allFailed) {
+        const firstErr = (results[0] as PromiseRejectedResult).reason;
+        setApiError(firstErr?.message || '화재정보 API에 연결할 수 없습니다.');
+        setLoading(false);
+        return;
+      }
 
       // 시도 요약 → 전국 합산
       if (results[0].status === 'fulfilled') {
@@ -225,8 +236,9 @@ export default function FireAnalysis() {
       }
 
       // 재산피해 — 합산은 위에서 이미 처리
-    } catch (e) {
+    } catch (e: any) {
       console.error('화재 데이터 조회 오류:', e);
+      setApiError(e?.message || '알 수 없는 오류가 발생했습니다.');
     }
 
     setLoading(false);
@@ -272,8 +284,26 @@ export default function FireAnalysis() {
         <StatCard icon="report" iconColor="text-gray-400" label="허위 신고" value={summary.falseReport} loading={loading} />
       </div>
 
-      {/* 데이터 없을 때 */}
-      {!loading && !hasAnyData && (
+      {/* API 에러 배너 */}
+      {!loading && apiError && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6 text-center">
+          <span className="material-symbols-outlined text-5xl text-red-400/60 mb-3 block">cloud_off</span>
+          <h3 className="text-lg font-bold text-on-surface mb-2">화재정보 API 연결 실패</h3>
+          <p className="text-sm text-red-300/80 max-w-lg mx-auto mb-1">{apiError}</p>
+          <p className="text-xs text-on-surface-variant max-w-lg mx-auto mb-4">
+            공공데이터포털에서 API 서비스 신청 후 승인까지 최대 1~2일이 소요될 수 있습니다.<br />
+            이미 승인된 API라면 공공데이터 서버 일시 장애일 수 있으니 잠시 후 다시 시도해주세요.
+          </p>
+          <button onClick={fetchAll}
+            className="bg-red-500/20 text-red-300 px-5 py-2 rounded-lg text-sm font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg">refresh</span>
+            다시 시도
+          </button>
+        </div>
+      )}
+
+      {/* 데이터 없을 때 (API 정상이지만 데이터 미제공) */}
+      {!loading && !apiError && !hasAnyData && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-8 text-center">
           <span className="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-3 block">info</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">{selectedYear}년 화재 데이터가 아직 없습니다</h3>

@@ -13,6 +13,7 @@ const cityToCtprvn: Record<string, string> = {
 export default function ShelterView({ city }: ShelterViewProps) {
   const [shelters, setShelters] = useState<ShelterData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [filter, setFilter] = useState('');
   const [selectedShelter, setSelectedShelter] = useState<ShelterData | null>(null);
@@ -31,14 +32,22 @@ export default function ShelterView({ city }: ShelterViewProps) {
   }, []);
 
   // 데이터 로드
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
+    setApiError(null);
     getShelters(city, userPos?.lat, userPos?.lng)
       .then(data => {
         setShelters(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        setApiError(err?.message || '대피소 데이터를 불러올 수 없습니다.');
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    loadData();
   }, [city, userPos]);
 
   // 카카오맵 초기화
@@ -185,6 +194,20 @@ export default function ShelterView({ city }: ShelterViewProps) {
               <div className="flex items-center justify-center p-12">
                 <div className="animate-spin w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full"></div>
                 <span className="ml-3 text-sm text-on-surface-variant">대피소 데이터 로딩 중...</span>
+              </div>
+            ) : apiError ? (
+              <div className="p-8 text-center">
+                <span className="material-symbols-outlined text-red-400/60 text-4xl">cloud_off</span>
+                <p className="text-sm font-bold text-on-surface mt-2">대피소 API 연결 실패</p>
+                <p className="text-xs text-red-300/80 mt-1 max-w-xs mx-auto">{apiError}</p>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  공공데이터 서버 장애 또는 API 승인 대기 중일 수 있습니다.
+                </p>
+                <button onClick={loadData}
+                  className="mt-3 bg-red-500/20 text-red-300 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">refresh</span>
+                  다시 시도
+                </button>
               </div>
             ) : filteredShelters.length === 0 ? (
               <div className="p-8 text-center">

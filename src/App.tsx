@@ -13,11 +13,13 @@ import EmergencyAnalysis from './components/EmergencyAnalysis';
 import FireAnalysis from './components/FireAnalysis';
 import GlobalSearch from './components/GlobalSearch';
 import SettingsModal from './components/SettingsModal';
+import MultiUseView from './components/MultiUseView';
+import HazmatView from './components/HazmatView';
 import { fetchFireWaterFacilities } from './services/fireWaterApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS } from './services/weatherApi';
 import { getRealtimeAirQuality } from './services/airQualityApi';
 import type { FireFacility } from './data/mockData';
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat';
 
 // 알림 시스템 타입
 interface Notification {
@@ -44,12 +46,23 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'waterTowers', icon: 'water_pump', label: '급수탑/저수조' },
   { id: 'er', icon: 'local_hospital', label: '응급실 현황' },
   { id: 'building', icon: 'apartment', label: '건축물대장' },
+  { id: 'multiuse', icon: 'store', label: '다중이용업소' },
+  { id: 'hazmat', icon: 'warning', label: '위험물시설' },
   { id: 'shelter', icon: 'emergency', label: '대피소' },
   { id: 'emergency', icon: 'ambulance', label: '구급 분석' },
   { id: 'fire-analysis', icon: 'local_fire_department', label: '화재 분석' },
   { id: 'calculator', icon: 'calculate', label: '계산기' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
   { id: 'memo', icon: 'sticky_note_2', label: '메모장' },
+];
+
+// 모바일 바텀 네비게이션 탭
+const BOTTOM_TABS: { id: TabId | 'more'; icon: string; label: string }[] = [
+  { id: 'dashboard', icon: 'dashboard', label: '대시보드' },
+  { id: 'hydrants', icon: 'fire_hydrant', label: '소화전' },
+  { id: 'er', icon: 'local_hospital', label: '응급실' },
+  { id: 'weather', icon: 'cloud', label: '기상' },
+  { id: 'more', icon: 'menu', label: '더보기' },
 ];
 
 const cityNames: Record<string, string> = {
@@ -251,12 +264,37 @@ export default function App() {
       case 'dashboard': return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} />;
       case 'weather': return <WeatherDashboard city={city} />;
       case 'hydrants': return <FacilityList data={hydrants} title="소화전 위치" icon="🚒" typeLabel="소화전" city={city} isLoading={isLoadingFacilities} />;
-      case 'waterTowers': return <FacilityList data={waterTowers} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑/저수조/비상소화장치" city={city} isLoading={isLoadingFacilities} />;
+      case 'waterTowers': return waterTowers.length > 0
+        ? <FacilityList data={waterTowers} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑/저수조/비상소화장치" city={city} isLoading={isLoadingFacilities} />
+        : (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-extrabold text-on-surface font-headline">💧 급수탑 · 저수조</h2>
+            </div>
+            <div className="bg-amber-900/15 border border-amber-500/20 rounded-xl p-8 text-center">
+              <span className="material-symbols-outlined text-5xl text-amber-400/50 mb-3 block">construction</span>
+              <h3 className="text-lg font-bold text-on-surface mb-2">데이터 준비 중</h3>
+              <p className="text-sm text-on-surface-variant max-w-lg mx-auto">
+                현재 소방용수시설 데이터에 급수탑·저수조 정보가 포함되어 있지 않습니다.<br />
+                공공데이터포털에서 별도 데이터셋 확보 후 제공 예정입니다.
+              </p>
+              <div className="mt-4 flex justify-center gap-3">
+                <button onClick={() => handleNavigate('hydrants')}
+                  className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors inline-flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-lg">fire_hydrant</span>
+                  소화전 보기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
       case 'er': return <ERDashboard city={city} />;
       case 'building': return <BuildingView />;
       case 'shelter': return <ShelterView city={city} />;
       case 'emergency': return <EmergencyAnalysis />;
       case 'fire-analysis': return <FireAnalysis />;
+      case 'multiuse': return <MultiUseView city={city} />;
+      case 'hazmat': return <HazmatView />;
       case 'calculator': return <Calculators />;
       case 'calendar': return <Calendar />;
       case 'memo': return <StickyNotes />;
@@ -469,9 +507,44 @@ export default function App() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar relative">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 lg:pb-6 custom-scrollbar relative">
           {renderContent()}
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-container-lowest/95 backdrop-blur-lg border-t border-outline-variant/20 safe-area-bottom">
+          <div className="flex items-center justify-around h-16 px-1">
+            {BOTTOM_TABS.map(tab => {
+              const isActive = tab.id !== 'more' && activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    if (tab.id === 'more') {
+                      setSidebarOpen(true);
+                    } else {
+                      handleNavigate(tab.id as TabId);
+                    }
+                  }}
+                  className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-[56px] ${
+                    isActive
+                      ? 'text-primary'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <span
+                    className={`material-symbols-outlined text-xl transition-all ${isActive ? 'scale-110' : ''}`}
+                    style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                  >
+                    {tab.icon}
+                  </span>
+                  <span className={`text-[10px] font-medium ${isActive ? 'font-bold' : ''}`}>{tab.label}</span>
+                  {isActive && <span className="w-4 h-0.5 bg-primary rounded-full mt-0.5" />}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       </main>
     </div>
   );

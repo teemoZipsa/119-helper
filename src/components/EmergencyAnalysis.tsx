@@ -153,6 +153,7 @@ export default function EmergencyAnalysis() {
   const months = getRecentMonths(24);
   const [selectedMonth, setSelectedMonth] = useState(months[1] || months[0]); // 지난달 기본
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // 데이터 상태
   const [activity, setActivity] = useState<ActivityStats>({ dispatchCnt: 0, transferCnt: 0, transferPrsnCnt: 0 });
@@ -163,6 +164,7 @@ export default function EmergencyAnalysis() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setApiError(null);
     const params = { reqYm: selectedMonth };
 
     try {
@@ -173,6 +175,15 @@ export default function EmergencyAnalysis() {
         fetchEmergencyStats('location', params),
         fetchEmergencyInfo('vehicles', {}),
       ]);
+
+      // 전체 실패 여부 확인
+      const allFailed = results.every(r => r.status === 'rejected');
+      if (allFailed) {
+        const firstErr = (results[0] as PromiseRejectedResult).reason;
+        setApiError(firstErr?.message || '구급통계 API에 연결할 수 없습니다.');
+        setLoading(false);
+        return;
+      }
 
       // 119구급활동현황
       if (results[0].status === 'fulfilled') {
@@ -228,8 +239,9 @@ export default function EmergencyAnalysis() {
           vhcleSttus: it.vhcleSttus || it.차량상태 || '-',
         })));
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('구급 데이터 조회 오류:', e);
+      setApiError(e?.message || '알 수 없는 오류가 발생했습니다.');
     }
 
     setLoading(false);
@@ -294,8 +306,28 @@ export default function EmergencyAnalysis() {
         />
       </div>
 
-      {/* 데이터가 아예 없을 때 안내 */}
-      {!loading && !hasAnyData && (
+      {/* API 에러 배너 */}
+      {!loading && apiError && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6 text-center">
+          <span className="material-symbols-outlined text-5xl text-red-400/60 mb-3 block">cloud_off</span>
+          <h3 className="text-lg font-bold text-on-surface mb-2">구급통계 API 연결 실패</h3>
+          <p className="text-sm text-red-300/80 max-w-lg mx-auto mb-1">{apiError}</p>
+          <p className="text-xs text-on-surface-variant max-w-lg mx-auto mb-4">
+            공공데이터포털에서 API 서비스 신청 후 승인까지 최대 1~2일이 소요될 수 있습니다.<br />
+            이미 승인된 API라면 공공데이터 서버 일시 장애일 수 있으니 잠시 후 다시 시도해주세요.
+          </p>
+          <button
+            onClick={fetchAll}
+            className="bg-red-500/20 text-red-300 px-5 py-2 rounded-lg text-sm font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-lg">refresh</span>
+            다시 시도
+          </button>
+        </div>
+      )}
+
+      {/* 데이터가 아예 없을 때 안내 (API는 정상이지만 데이터 미제공) */}
+      {!loading && !apiError && !hasAnyData && (
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-8 text-center">
           <span className="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-3 block">info</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">
@@ -304,7 +336,6 @@ export default function EmergencyAnalysis() {
           <p className="text-sm text-on-surface-variant max-w-lg mx-auto">
             소방청 구급통계 데이터는 통상 2~3개월 전 데이터까지만 제공됩니다.
             월 선택 드롭다운에서 더 이전 달을 선택해 보세요.
-            API 키 동기화가 지연될 수도 있습니다.
           </p>
         </div>
       )}

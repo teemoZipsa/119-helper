@@ -7,6 +7,17 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://119-helper-api.teemozipsa.workers.dev';
 
+const API_TIMEOUT_MS = 15_000; // 15초 타임아웃
+
+function humanizeApiError(status: number, body: string): string {
+  if (status === 502) return 'API 서비스 승인 대기 중이거나 공공데이터 서버 점검 중입니다.';
+  if (status === 520) return '공공데이터 서버 연결 오류입니다. 잠시 후 다시 시도해주세요.';
+  if (status === 403) return 'API 접근이 거부되었습니다. 서비스 키를 확인하세요.';
+  if (status === 429) return 'API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.';
+  if (status >= 500) return `공공데이터 서버 오류 (${status})`;
+  return `API 오류 (${status}): ${body}`;
+}
+
 async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
@@ -15,14 +26,26 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
     });
   }
 
-  const res = await fetch(url.toString(), { cache: 'no-store' });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`API 오류 (${res.status}): ${body}`);
+  try {
+    const res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(humanizeApiError(res.status, body));
+    }
+
+    return res.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('API 응답 시간 초과 (15초). 공공데이터 서버가 응답하지 않습니다.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return res.json();
 }
 
 async function apiFetchXml(path: string, params?: Record<string, string>): Promise<string> {
