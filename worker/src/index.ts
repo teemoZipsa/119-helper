@@ -152,10 +152,19 @@ export default {
         return jsonResponse(result.data, request, 200, result.cacheTtl);
       }
 
-      // ═══════ 연간화재통계 ═══════
+      // ═══════ 연간화재통계 (Cache API 적용) ═══════
       if (path.startsWith('/api/fire-annual/')) {
+        const cache = caches.default;
+        const cacheKey = new Request(url.toString(), { method: 'GET' });
+        const cached = await cache.match(cacheKey);
+        if (cached) return cached;
+
         const result = await handleAnnualFireStats(path, url, env.ANNUAL_FIRE_API_KEY);
-        return jsonResponse(result.data, request, 200, result.cacheTtl);
+        const response = jsonResponse(result.data, request, 200, result.cacheTtl);
+        // 24시간 엣지 캐시
+        response.headers.set('Cache-Control', 'public, max-age=86400');
+        await cache.put(cacheKey, response.clone());
+        return response;
       }
 
       // 404

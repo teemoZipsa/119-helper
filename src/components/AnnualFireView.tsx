@@ -74,6 +74,33 @@ export default function AnnualFireView() {
             <span className="material-symbols-outlined text-lg">refresh</span>
             새로고침
           </button>
+          {data && (
+            <button
+              onClick={() => {
+                const rows: string[][] = [['구분', '항목', '값']];
+                rows.push(['요약', '총 화재', String(data.summary.totalFires)]);
+                rows.push(['요약', '사망', String(data.summary.totalDeaths)]);
+                rows.push(['요약', '부상', String(data.summary.totalInjuries)]);
+                rows.push(['요약', '재산피해', String(data.summary.totalPropertyDamage)]);
+                data.bySido.forEach(d => rows.push(['시도별', d.name, String(d.count)]));
+                data.byFireType.forEach(d => rows.push(['화재유형', d.name, String(d.count)]));
+                data.byPlace.forEach(d => rows.push(['장소별', d.name, String(d.count)]));
+                data.byCause.forEach(d => rows.push(['발화요인', d.name, String(d.count)]));
+                data.byMonth.forEach(d => rows.push(['월별', d.month, String(d.count)]));
+                data.casualtiesBySido.forEach(d => rows.push(['인명피해', d.name, `사망${d.deaths}/부상${d.injuries}`]));
+                const csv = '\uFEFF' + rows.map(r => r.join(',')).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `화재통계_${year}년.csv`;
+                a.click();
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-xl text-sm font-bold hover:bg-secondary/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">download</span>
+              CSV
+            </button>
+          )}
         </div>
       </div>
 

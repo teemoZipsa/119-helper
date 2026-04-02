@@ -3,8 +3,10 @@ import { getRealtimeAirQuality, type AirQualityData } from '../services/airQuali
 import { getERRealTimeBeds, CITY_TO_SIDO, type ERRealTimeData } from '../services/erApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather } from '../services/weatherApi';
 import type { FireFacility } from '../data/mockData';
+import { fetchAnnualFireStats } from '../services/apiClient';
+import type { AnnualFireStatsResponse } from '../services/apiClient';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -25,6 +27,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   const [erList, setErList] = useState<ERRealTimeData[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  const [fireStats, setFireStats] = useState<AnnualFireStatsResponse | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -51,6 +54,11 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
     });
     return () => { isMounted = false; };
   }, [city]);
+
+  // 연간화재통계 (한번만 로드)
+  useEffect(() => {
+    fetchAnnualFireStats('2024').then(setFireStats).catch(() => {});
+  }, []);
 
   const hydrantsCount = fireFacilities.filter(f => f.type === '소화전').length;
   const towersCount = fireFacilities.filter(f => f.type !== '소화전').length;
@@ -201,6 +209,58 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           </div>
         </div>
       </div>
+
+      {/* 연간 화재통계 미니 위젯 */}
+      {fireStats && (
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
+          <div className="p-6 pb-0 flex items-center justify-between">
+            <h3 className="text-lg font-extrabold text-on-surface font-headline flex items-center gap-2">
+              <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
+              2024년 화재 현황
+            </h3>
+            <button
+              onClick={() => onNavigate('annual-fire' as TabId)}
+              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
+            >
+              상세 보기
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          </div>
+          <div className="p-6 pt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              {[
+                { label: '총 화재', value: fireStats.summary.totalFires.toLocaleString(), icon: 'whatshot', color: 'text-error' },
+                { label: '사망', value: `${fireStats.summary.totalDeaths}명`, icon: 'person_off', color: 'text-error' },
+                { label: '부상', value: `${fireStats.summary.totalInjuries}명`, icon: 'personal_injury', color: 'text-tertiary' },
+                { label: '재산피해', value: fireStats.summary.totalPropertyDamage >= 100_000_000 ? `${(fireStats.summary.totalPropertyDamage / 100_000_000).toFixed(1)}억원` : `${(fireStats.summary.totalPropertyDamage / 10_000).toFixed(0)}만원`, icon: 'payments', color: 'text-primary' },
+              ].map(c => (
+                <div key={c.label} className="text-center p-3 rounded-xl bg-surface-container">
+                  <span className={`material-symbols-outlined ${c.color} text-lg`} style={{ fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
+                  <p className="text-xl font-extrabold text-on-surface mt-1 font-headline">{c.value}</p>
+                  <p className="text-[10px] text-on-surface-variant font-bold">{c.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase mb-2">시도별 화재 TOP 5</p>
+              {fireStats.bySido.slice(0, 5).map((item, i) => {
+                const max = fireStats.bySido[0]?.count || 1;
+                const colors = ['#4f8cff', '#34d399', '#f59e0b', '#ef4444', '#a78bfa'];
+                return (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="text-[10px] text-on-surface-variant w-14 text-right font-medium truncate">{item.name}</span>
+                    <div className="flex-1 h-4 bg-surface-container rounded-full overflow-hidden">
+                      <div className="h-full rounded-full flex items-center justify-end pr-1.5" style={{ width: `${(item.count / max) * 100}%`, backgroundColor: colors[i], minWidth: '1.5rem' }}>
+                        <span className="text-[8px] font-bold text-white">{item.count.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Quick Tools */}
       <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">

@@ -152,12 +152,13 @@ export async function handleAnnualFireStats(
     return { data: aggregate([]), cacheTtl: 86400 };
   }
 
-  // 최대 5000건씩 페이징으로 가져오기 (총 3페이지까지 = 15,000건)
+  // 전체 데이터 페이징으로 가져오기 (5000건/페이지, 전체 가져옴)
   const perPage = 5000;
-  const maxPages = Math.min(Math.ceil(totalCount / perPage), 3);
+  const totalPages = Math.ceil(totalCount / perPage);
   const allRecords: any[] = [];
 
-  const fetchPromises = Array.from({ length: maxPages }, async (_, i) => {
+  // 병렬로 모든 페이지 요청 (Workers 유료 플랜 30s 제한 내)
+  const fetchPromises = Array.from({ length: totalPages }, async (_, i) => {
     const pageUrl = `${BASE}/${uddi}?serviceKey=${encodeURIComponent(apiKey)}&page=${i + 1}&perPage=${perPage}`;
     const res = await fetch(pageUrl, {
       headers: { 'User-Agent': '119-helper-worker/1.0' },

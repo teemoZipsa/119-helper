@@ -302,8 +302,8 @@ export default function App() {
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-extrabold text-on-surface font-headline">💧 급수탑 · 저수조</h2>
             </div>
-            <div className="bg-amber-900/15 border border-amber-500/20 rounded-xl p-8 text-center">
-              <span className="material-symbols-outlined text-5xl text-amber-400/50 mb-3 block">construction</span>
+            <div className="bg-tertiary-container/20 border border-tertiary/20 rounded-xl p-8 text-center">
+              <span className="material-symbols-outlined text-5xl text-tertiary/50 mb-3 block">construction</span>
               <h3 className="text-lg font-bold text-on-surface mb-2">데이터 준비 중</h3>
               <p className="text-sm text-on-surface-variant max-w-lg mx-auto">
                 현재 소방용수시설 데이터에 급수탑·저수조 정보가 포함되어 있지 않습니다.<br />
