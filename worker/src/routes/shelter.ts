@@ -16,16 +16,17 @@ export async function handleShelter(url: URL, apiKey: string): Promise<{ data: u
   if (ctprvnNm) params.set('ctprvnNm', ctprvnNm);
   if (signguNm) params.set('signguNm', signguNm);
 
-  // 공공데이터포털 api.data.go.kr 도메인은 HTTPS 통신 시 
-  // 존재하지 않는 www.api.data.go.kr 로 301 Redirection 시키는 SSL 서버 구성 오류가 있어
-  // HTTP 환경으로 통신하여 520 타임아웃을 우회합니다.
+  // api.data.go.kr → HTTPS 호출 (redirect: 'follow'로 리다이렉트 대응)
   const res = await fetch(
-    `http://api.data.go.kr/openapi/tn_pubr_public_shelter_api?${params}`,
-    { headers: { 'User-Agent': '119-helper-worker/1.0' } }
+    `https://api.data.go.kr/openapi/tn_pubr_public_shelter_api?${params}`,
+    {
+      headers: { 'User-Agent': '119-helper-worker/1.0' },
+      redirect: 'follow',
+    }
   );
   if (!res.ok) throw new Error(`Shelter API ${res.status}`);
   const json: any = await res.json();
   const items = json?.response?.body?.items || [];
 
-  return { data: items, cacheTtl: 86400 }; // 24시간 캐시 (대피소 위치는 자주 안 변함)
+  return { data: items, cacheTtl: 86400 }; // 24시간 캐시
 }
