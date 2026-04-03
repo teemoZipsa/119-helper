@@ -302,14 +302,14 @@ export default function App() {
   };
 
   const renderContent = () => {
-    const hydrants = fireFacilities.filter(f => f.type === '소화전');
-    const waterTowers = fireFacilities.filter(f => f.type !== '소화전');
+    const hydrants = fireFacilities.filter(f => f.type === '소화전' || f.type === '비상소화장치');
+    const waterTowers = fireFacilities.filter(f => f.type === '급수탑' || f.type === '저수조');
 
     switch (activeTab) {
       case 'dashboard': return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} cityIndex={cityIndex} />;
       case 'weather': return <WeatherDashboard city={city} />;
-      case 'hydrants': return <FacilityList data={hydrants} title="소화전 위치" icon="🚒" typeLabel="소화전" city={city} isLoading={isLoadingFacilities} cityIndex={cityIndex} selectedDistrict={selectedDistrict} onDistrictChange={loadDistrict} />;
-      case 'waterTowers': return <FacilityList data={waterTowers} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑/저수조/비상소화장치" city={city} isLoading={isLoadingFacilities} cityIndex={cityIndex} selectedDistrict={selectedDistrict} onDistrictChange={loadDistrict} />;
+      case 'hydrants': return <FacilityList data={hydrants} title="소화전 위치" icon="🚒" typeLabel="소화전 · 비상소화장치" city={city} isLoading={isLoadingFacilities} cityIndex={cityIndex} selectedDistrict={selectedDistrict} onDistrictChange={loadDistrict} />;
+      case 'waterTowers': return <FacilityList data={waterTowers} title="급수탑 · 저수조 위치" icon="💧" typeLabel="급수탑 · 저수조" city={city} isLoading={isLoadingFacilities} cityIndex={cityIndex} selectedDistrict={selectedDistrict} onDistrictChange={loadDistrict} />;
       case 'er': return <ERDashboard city={city} />;
       case 'building': return <BuildingView />;
       case 'shelter': return <ShelterView city={city} />;

@@ -84,7 +84,7 @@ export default function FacilityList({
           ) : (
             <span className="text-sm text-on-surface-variant">
               {isSplit && !selectedDistrict
-                ? <>총 <span className="font-bold text-primary">{cityIndex.total.toLocaleString()}</span>건 (구를 선택해주세요)</>
+                ? <>구/군을 선택해주세요</>
                 : <>총 <span className="font-bold text-primary">{filtered.length.toLocaleString()}</span>건</>
               }
             </span>
@@ -131,8 +131,7 @@ export default function FacilityList({
           <span className="material-symbols-outlined text-5xl text-tertiary/60 mb-3 block">touch_app</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">구/군을 선택해 주세요</h3>
           <p className="text-sm text-on-surface-variant max-w-lg mx-auto">
-            데이터가 <span className="font-bold text-primary">{cityIndex.total.toLocaleString()}</span>건으로 많아
-            구/군별로 분할되어 있습니다.<br />
+            데이터가 많아 구/군별로 분할되어 있습니다.<br />
             위에서 보고 싶은 구/군을 선택하면 해당 지역의 {typeLabel} 정보를 빠르게 불러옵니다.
           </p>
         </div>
