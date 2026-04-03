@@ -135,6 +135,12 @@ export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRo
   return apiFetch<any[]>('/api/shelter', { ctprvnNm, signguNm: signguNm || '', numOfRows, pageNo });
 }
 
+// ═══════ 민방위대피시설 ═══════
+
+export async function fetchCivilShelters(ctprvnNm: string, sgnNm?: string, numOfRows = '200', pageNo = '1') {
+  return apiFetch<any[]>('/api/civil-shelter', { ctprvnNm, sgnNm: sgnNm || '', numOfRows, pageNo });
+}
+
 // ═══════ 다중이용업소 ═══════
 
 export async function fetchMultiUseFacilities(ctprvnNm: string, signguNm?: string) {

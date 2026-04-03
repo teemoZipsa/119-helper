@@ -20,6 +20,7 @@ import { handleFireInfo } from './routes/fireInfo';
 import { handleAnnualFireStats } from './routes/annualFireStats';
 import { handleFireObject } from './routes/fireObject';
 import { handleFireDamage } from './routes/fireDamage';
+import { handleCivilShelter } from './routes/civilShelter';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -133,6 +134,12 @@ export default {
       // ═══════ 대피소 (지진해일) ═══════
       if (path === '/api/shelter') {
         const result = await handleShelter(url, env.SHELTER_API_KEY);
+        return jsonResponse(result.data, request, 200, result.cacheTtl);
+      }
+
+      // ═══════ 민방위대피시설 ═══════
+      if (path === '/api/civil-shelter') {
+        const result = await handleCivilShelter(url, env.SHELTER_API_KEY);
         return jsonResponse(result.data, request, 200, result.cacheTtl);
       }
 
