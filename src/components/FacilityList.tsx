@@ -100,7 +100,7 @@ export default function FacilityList({
             <h3 className="text-sm font-bold text-on-surface">구/군 선택</h3>
             {selectedDistrict && (
               <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold ml-auto">
-                {selectedDistrict} · {cityIndex.districts[selectedDistrict]?.toLocaleString()}건
+                {selectedDistrict} · {data.length.toLocaleString()}건
               </span>
             )}
           </div>
@@ -117,7 +117,7 @@ export default function FacilityList({
               >
                 {d}
                 <span className={`ml-1.5 text-[10px] ${selectedDistrict === d ? 'text-on-primary/70' : 'text-on-surface-variant/50'}`}>
-                  {cityIndex.districts[d]?.toLocaleString()}
+                  {selectedDistrict === d ? data.length.toLocaleString() : cityIndex.districts[d]?.toLocaleString()}
                 </span>
               </button>
             ))}
