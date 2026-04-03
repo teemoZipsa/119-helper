@@ -228,10 +228,10 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
           <div className="overflow-x-auto custom-scrollbar">
             <div className="flex min-w-max">
               {hourly.slice(0, 24).map((h, i) => (
-                <div key={i} className={`flex flex-col items-center px-4 py-4 min-w-[72px] border-r border-outline-variant/5 ${
+                <div key={i} className={`flex flex-col items-center px-4 py-4 min-w-[72px] border-r border-outline-variant/5 relative ${
                   h.time === '0000' ? 'bg-surface-container/30 border-l-2 border-l-primary/30' : ''
                 }`}>
-                  {h.time === '0000' && <span className="text-[9px] text-primary font-bold mb-1">{formatDate(h.date)}</span>}
+                  {h.time === '0000' && <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[9px] text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded-b">{formatDate(h.date)}</span>}
                   <span className="text-xs text-on-surface-variant">{formatTime(h.time)}</span>
                   <span className="text-2xl my-2">{h.precipIcon || h.skyIcon}</span>
                   <span className="text-lg font-bold text-on-surface">{h.temp}°</span>

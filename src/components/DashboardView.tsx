@@ -3,10 +3,8 @@ import { getRealtimeAirQuality, type AirQualityData } from '../services/airQuali
 import { getERRealTimeBeds, CITY_TO_SIDO, type ERRealTimeData } from '../services/erApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather } from '../services/weatherApi';
 import type { FireFacility } from '../data/mockData';
-import { fetchAnnualFireStats } from '../services/apiClient';
-import type { AnnualFireStatsResponse } from '../services/apiClient';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire' | 'statistics';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -27,7 +25,6 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   const [erList, setErList] = useState<ERRealTimeData[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
-  const [fireStats, setFireStats] = useState<AnnualFireStatsResponse | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -55,13 +52,10 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
     return () => { isMounted = false; };
   }, [city]);
 
-  // 연간화재통계 (한번만 로드)
-  useEffect(() => {
-    fetchAnnualFireStats('2024').then(setFireStats).catch(() => {});
-  }, []);
-
   const hydrantsCount = fireFacilities.filter(f => f.type === '소화전').length;
   const towersCount = fireFacilities.filter(f => f.type !== '소화전').length;
+
+  const regionImageUrl = `/images/regions/${city}.png`;
 
   return (
     <div className="space-y-6">
@@ -85,61 +79,72 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
 
       {/* Large Weather + ER Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-        {/* BIG Weather Widget */}
-        <div className="lg:col-span-7 bg-gradient-to-br from-blue-900/30 via-indigo-900/20 to-purple-900/20 border border-blue-500/10 rounded-xl p-5 md:p-8 relative overflow-hidden cursor-pointer hover:border-blue-500/30 transition-colors" onClick={() => onNavigate('weather')}>
-          <div className="absolute -right-10 -top-10 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl"></div>
+        {/* BIG Weather Widget with Region Background Image */}
+        <div 
+          className="lg:col-span-7 rounded-xl p-5 md:p-8 relative overflow-hidden cursor-pointer hover:shadow-2xl transition-shadow group"
+          onClick={() => onNavigate('weather')}
+          style={{ minHeight: '280px' }}
+        >
+          {/* Background Image Layer */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+            style={{ backgroundImage: `url(${regionImageUrl})` }}
+          />
+          {/* Dark overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30" />
+          
           <div className="flex items-start justify-between relative z-10">
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-blue-300/60">현재 날씨</p>
-                <span className="text-[10px] bg-surface-container/50 px-2 py-0.5 rounded text-on-surface-variant">{cityLabel}</span>
-                {weather && <span className="text-[10px] text-on-surface-variant/50">{weather.lastUpdate} 기준</span>}
+                <p className="text-xs font-bold uppercase tracking-widest text-white/70">현재 날씨</p>
+                <span className="text-xs bg-white/20 backdrop-blur-sm px-2.5 py-0.5 rounded-full text-white font-bold">{cityLabel}</span>
+                {weather && <span className="text-[10px] text-white/50">{weather.lastUpdate} 기준</span>}
               </div>
-              <h3 className="text-4xl md:text-7xl font-extrabold text-on-surface mt-2 font-headline">
+              <h3 className="text-4xl md:text-7xl font-extrabold text-white mt-2 font-headline drop-shadow-lg">
                 {weatherLoading ? (
-                  <span className="text-2xl animate-pulse text-on-surface-variant">조회 중...</span>
+                  <span className="text-2xl animate-pulse text-white/60">조회 중...</span>
                 ) : (
-                  <>{weather?.temperature ?? '--'}<span className="text-3xl text-on-surface-variant ml-1">°C</span></>
+                  <>{weather?.temperature ?? '--'}<span className="text-3xl text-white/70 ml-1">°C</span></>
                 )}
               </h3>
-              <p className="text-lg text-on-surface-variant mt-1">
+              <p className="text-lg text-white/80 mt-1 drop-shadow">
                 {weather ? `${weather.skyIcon} ${weather.sky}` : '--'}
                 {weather?.precipType !== '없음' && weather?.precipIcon && ` ${weather.precipIcon} ${weather.precipType}`}
               </p>
             </div>
             <div className="text-right space-y-3 hidden md:block">
-              <div className="bg-surface-container/60 backdrop-blur-sm rounded-lg px-4 py-2.5">
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">풍속 / 풍향</p>
-                <p className="text-lg font-bold text-on-surface">{weather?.windSpeed ?? '--'}m/s <span className="text-on-surface-variant">{weather?.windDirection ?? '--'}</span></p>
+              <div className="bg-black/40 backdrop-blur-md rounded-lg px-4 py-2.5 border border-white/10">
+                <p className="text-[10px] text-white/60 uppercase tracking-wide">풍속 / 풍향</p>
+                <p className="text-lg font-bold text-white">{weather?.windSpeed ?? '--'}m/s <span className="text-white/70">{weather?.windDirection ?? '--'}</span></p>
               </div>
-              <div className="bg-surface-container/60 backdrop-blur-sm rounded-lg px-4 py-2.5">
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">습도</p>
-                <p className={`text-lg font-bold ${weather && weather.humidity <= 30 ? 'text-red-400' : 'text-on-surface'}`}>{weather?.humidity ?? '--'}%</p>
+              <div className="bg-black/40 backdrop-blur-md rounded-lg px-4 py-2.5 border border-white/10">
+                <p className="text-[10px] text-white/60 uppercase tracking-wide">습도</p>
+                <p className={`text-lg font-bold ${weather && weather.humidity <= 30 ? 'text-red-400' : 'text-white'}`}>{weather?.humidity ?? '--'}%</p>
               </div>
             </div>
           </div>
           <div className="flex gap-3 md:gap-6 mt-4 md:mt-6 relative z-10 flex-wrap">
-            <div className="flex items-center gap-2 bg-surface-container/40 rounded-lg px-3 py-2">
-              <span className="text-xs text-on-surface-variant">미세먼지</span>
+            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+              <span className="text-xs text-white/70">미세먼지</span>
               <span className={`text-xs font-bold ${
-                airQuality?.pm10Grade === '1' ? 'text-blue-400' :
-                airQuality?.pm10Grade === '2' ? 'text-green-400' :
-                airQuality?.pm10Grade === '3' ? 'text-amber-400' :
-                airQuality?.pm10Grade === '4' ? 'text-red-400' : 'text-on-surface-variant'
+                airQuality?.pm10Grade === '1' ? 'text-blue-300' :
+                airQuality?.pm10Grade === '2' ? 'text-green-300' :
+                airQuality?.pm10Grade === '3' ? 'text-amber-300' :
+                airQuality?.pm10Grade === '4' ? 'text-red-400' : 'text-white/60'
               }`}>{airQuality ? airQuality.pm10Value : '조회 중'}{airQuality?.pm10Value !== '-' ? '㎍/㎥' : ''}</span>
             </div>
-            <div className="flex items-center gap-2 bg-surface-container/40 rounded-lg px-3 py-2">
-              <span className="text-xs text-on-surface-variant">초미세먼지</span>
+            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+              <span className="text-xs text-white/70">초미세먼지</span>
               <span className={`text-xs font-bold ${
-                airQuality?.pm25Grade === '1' ? 'text-blue-400' :
-                airQuality?.pm25Grade === '2' ? 'text-green-400' :
-                airQuality?.pm25Grade === '3' ? 'text-amber-400' :
-                airQuality?.pm25Grade === '4' ? 'text-red-400' : 'text-on-surface-variant'
+                airQuality?.pm25Grade === '1' ? 'text-blue-300' :
+                airQuality?.pm25Grade === '2' ? 'text-green-300' :
+                airQuality?.pm25Grade === '3' ? 'text-amber-300' :
+                airQuality?.pm25Grade === '4' ? 'text-red-400' : 'text-white/60'
               }`}>{airQuality ? airQuality.pm25Value : '조회 중'}{airQuality?.pm25Value !== '-' ? '㎍/㎥' : ''}</span>
             </div>
-            <div className="flex items-center gap-2 bg-surface-container/40 rounded-lg px-3 py-2">
-              <span className="text-xs text-on-surface-variant">강수</span>
-              <span className="text-xs font-bold text-on-surface">{weather?.precipitation ?? '--'}mm</span>
+            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
+              <span className="text-xs text-white/70">강수</span>
+              <span className="text-xs font-bold text-white">{weather?.precipitation ?? '--'}mm</span>
             </div>
           </div>
         </div>
@@ -155,7 +160,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
                 </div>
                 <h4 className="text-4xl font-extrabold mt-1 font-headline">
                   <span className="text-secondary">{erList.length > 0 ? erList.reduce((s, e) => s + (parseInt(e.hvec) || 0), 0) : '...'}</span>
-                  <span className="text-lg text-on-surface-variant ml-1">/ {erList.length > 0 ? erList.reduce((s, e) => s + (parseInt(e.hpbdn) || 0), 0) : '...'}</span>
+                  <span className="text-lg text-on-surface-variant ml-1">병상</span>
                 </h4>
               </div>
               <div className="p-2 bg-secondary/10 rounded-lg">
@@ -196,71 +201,14 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               </p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">급수탑/저수조</p>
             </button>
-            <button onClick={() => onNavigate('emergency')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-red-500/30 transition-colors group relative overflow-hidden col-span-2">
-              <span className="material-symbols-outlined text-red-400 text-xl group-hover:scale-110 transition-transform">ambulance</span>
-              <p className="text-lg font-extrabold text-on-surface mt-1 font-headline">구급 출동 분석</p>
-              <p className="text-[10px] text-on-surface-variant">전국 구급통계 · 출동유형 · 연령별 분석</p>
-            </button>
-            <button onClick={() => onNavigate('fire-analysis')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-orange-500/30 transition-colors group relative overflow-hidden col-span-2">
-              <span className="material-symbols-outlined text-orange-400 text-xl group-hover:scale-110 transition-transform">local_fire_department</span>
-              <p className="text-lg font-extrabold text-on-surface mt-1 font-headline">화재 분석</p>
-              <p className="text-[10px] text-on-surface-variant">발화요인 · 화재장소 · 인명피해 · 재산피해</p>
+            <button onClick={() => onNavigate('statistics' as TabId)} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-orange-500/30 transition-colors group relative overflow-hidden col-span-2">
+              <span className="material-symbols-outlined text-orange-400 text-xl group-hover:scale-110 transition-transform">bar_chart</span>
+              <p className="text-lg font-extrabold text-on-surface mt-1 font-headline">통계 · 분석</p>
+              <p className="text-[10px] text-on-surface-variant">연간화재통계 · 화재분석 · 구급출동분석</p>
             </button>
           </div>
         </div>
       </div>
-
-      {/* 연간 화재통계 미니 위젯 */}
-      {fireStats && (
-        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
-          <div className="p-6 pb-0 flex items-center justify-between">
-            <h3 className="text-lg font-extrabold text-on-surface font-headline flex items-center gap-2">
-              <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
-              2024년 화재 현황
-            </h3>
-            <button
-              onClick={() => onNavigate('annual-fire' as TabId)}
-              className="text-xs text-primary font-bold hover:underline flex items-center gap-1"
-            >
-              상세 보기
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
-            </button>
-          </div>
-          <div className="p-6 pt-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-              {[
-                { label: '총 화재', value: fireStats.summary.totalFires.toLocaleString(), icon: 'whatshot', color: 'text-error' },
-                { label: '사망', value: `${fireStats.summary.totalDeaths}명`, icon: 'person_off', color: 'text-error' },
-                { label: '부상', value: `${fireStats.summary.totalInjuries}명`, icon: 'personal_injury', color: 'text-tertiary' },
-                { label: '재산피해', value: fireStats.summary.totalPropertyDamage >= 100_000_000 ? `${(fireStats.summary.totalPropertyDamage / 100_000_000).toFixed(1)}억원` : `${(fireStats.summary.totalPropertyDamage / 10_000).toFixed(0)}만원`, icon: 'payments', color: 'text-primary' },
-              ].map(c => (
-                <div key={c.label} className="text-center p-3 rounded-xl bg-surface-container">
-                  <span className={`material-symbols-outlined ${c.color} text-lg`} style={{ fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
-                  <p className="text-xl font-extrabold text-on-surface mt-1 font-headline">{c.value}</p>
-                  <p className="text-[10px] text-on-surface-variant font-bold">{c.label}</p>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase mb-2">시도별 화재 TOP 5</p>
-              {fireStats.bySido.slice(0, 5).map((item, i) => {
-                const max = fireStats.bySido[0]?.count || 1;
-                const colors = ['#4f8cff', '#34d399', '#f59e0b', '#ef4444', '#a78bfa'];
-                return (
-                  <div key={item.name} className="flex items-center gap-2">
-                    <span className="text-[10px] text-on-surface-variant w-14 text-right font-medium truncate">{item.name}</span>
-                    <div className="flex-1 h-4 bg-surface-container rounded-full overflow-hidden">
-                      <div className="h-full rounded-full flex items-center justify-end pr-1.5" style={{ width: `${(item.count / max) * 100}%`, backgroundColor: colors[i], minWidth: '1.5rem' }}>
-                        <span className="text-[8px] font-bold text-white">{item.count.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Quick Tools */}
       <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">

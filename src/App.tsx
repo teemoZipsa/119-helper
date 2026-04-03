@@ -16,11 +16,12 @@ import SettingsModal from './components/SettingsModal';
 import MultiUseView from './components/MultiUseView';
 import HazmatView from './components/HazmatView';
 import AnnualFireView from './components/AnnualFireView';
+import StatisticsView from './components/StatisticsView';
 import { fetchFireWaterFacilities } from './services/fireWaterApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS } from './services/weatherApi';
 import { getRealtimeAirQuality } from './services/airQualityApi';
 import type { FireFacility } from './data/mockData';
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics';
 
 // 알림 시스템 타입
 interface Notification {
@@ -49,10 +50,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'building', icon: 'apartment', label: '건축물대장' },
   { id: 'multiuse', icon: 'store', label: '다중이용업소' },
   { id: 'hazmat', icon: 'warning', label: '위험물시설' },
-  { id: 'annual-fire', icon: 'bar_chart', label: '연간화재통계' },
+  { id: 'statistics', icon: 'bar_chart', label: '통계' },
   { id: 'shelter', icon: 'emergency', label: '대피소' },
-  { id: 'emergency', icon: 'ambulance', label: '구급 분석' },
-  { id: 'fire-analysis', icon: 'local_fire_department', label: '화재 분석' },
   { id: 'calculator', icon: 'calculate', label: '계산기' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
   { id: 'memo', icon: 'sticky_note_2', label: '메모장' },
@@ -327,6 +326,7 @@ export default function App() {
       case 'multiuse': return <MultiUseView city={city} />;
       case 'hazmat': return <HazmatView />;
       case 'annual-fire': return <AnnualFireView />;
+      case 'statistics': return <StatisticsView />;
       case 'calculator': return <Calculators />;
       case 'calendar': return <Calendar />;
       case 'memo': return <StickyNotes />;
@@ -381,25 +381,14 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-outline-variant/20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center">
-              <span className="material-symbols-outlined text-on-surface-variant text-lg">person</span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-on-surface">소방관</p>
-              <p className="text-[10px] text-on-surface-variant">사용자</p>
-            </div>
+        <div className="p-4 border-t border-outline-variant/20 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center">
+            <span className="material-symbols-outlined text-on-surface-variant text-lg">person</span>
           </div>
-          <button
-            onClick={() => handleThemeChange(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
-            className="p-2 rounded-lg hover:bg-surface-container-high transition-colors"
-            title={`현재: ${theme === 'dark' ? '다크' : theme === 'light' ? '라이트' : '시스템'} 모드`}
-          >
-            <span className="material-symbols-outlined text-on-surface-variant text-lg"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >{theme === 'dark' ? 'dark_mode' : theme === 'light' ? 'light_mode' : 'settings_suggest'}</span>
-          </button>
+          <div>
+            <p className="text-sm font-bold text-on-surface">소방관</p>
+            <p className="text-[10px] text-on-surface-variant">사용자</p>
+          </div>
         </div>
       </aside>
 
@@ -530,6 +519,17 @@ export default function App() {
               )}
             </div>
 
+            {/* Theme Toggle */}
+            <button
+              onClick={() => handleThemeChange(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
+              className="p-1.5 rounded-lg hover:bg-surface-container transition-colors"
+              title={`현재: ${theme === 'dark' ? '다크' : theme === 'light' ? '라이트' : '시스템'} 모드`}
+            >
+              <span className="material-symbols-outlined text-on-surface-variant text-xl"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >{theme === 'dark' ? 'dark_mode' : theme === 'light' ? 'light_mode' : 'settings_suggest'}</span>
+            </button>
+
             {/* Settings */}
             <div className="relative hidden sm:block" ref={settingsRef}>
               <button 
@@ -544,8 +544,6 @@ export default function App() {
                 city={city}
                 onCityChange={handleCityChange}
                 cityNames={cityNames}
-                theme={theme}
-                onThemeChange={handleThemeChange}
               />
             </div>
           </div>

@@ -85,8 +85,21 @@ export default function ERDashboard({ city }: ERViewProps) {
     return () => clearInterval(interval);
   }, [fetchER]);
 
-  const totalAvailable = erData.reduce((sum, er) => sum + (parseInt(er.hvec) || 0), 0);
-  const totalBeds = erData.reduce((sum, er) => sum + (parseInt(er.hpbdn) || 0), 0);
+  // 가용 병상 합산 (응급실 + 입원실)
+  const totalErAvailable = erData.reduce((sum, er) => sum + (parseInt(er.hvec) || 0), 0);
+  const totalWardAvailable = erData.reduce((sum, er) => sum + (parseInt(er.hvgc) || 0), 0);
+  const totalAvailable = totalErAvailable + totalWardAvailable;
+
+  // 전체 병상 합산
+  // hpbdn = 응급실 병상수(전체), dutyHayn = 기관 당 병상수(fallback)
+  const totalErBeds = erData.reduce((sum, er) => {
+    const erBeds = parseInt(er.hpbdn) || 0;
+    if (erBeds > 0) return sum + erBeds;
+    // hpbdn이 0이면 dutyHayn(기관 총 병상수)으로 fallback
+    const totalHospBeds = parseInt(er.dutyHayn) || 0;
+    return sum + totalHospBeds;
+  }, 0);
+  const erUsageRate = totalErBeds > 0 ? Math.round(totalErAvailable / totalErBeds * 100) : -1;
 
   /* 메시지 분류 라벨 */
   function getMsgTypeLabel(msg: ERMessage): string {
@@ -94,6 +107,8 @@ export default function ERDashboard({ city }: ERViewProps) {
     if (msg.symTypMain && msg.symTypMain.trim()) return msg.symTypMain.trim();
     return '응급실 알림';
   }
+
+  const [noticeOpen, setNoticeOpen] = useState(true);
 
   return (
     <div className="space-y-6">
@@ -111,38 +126,26 @@ export default function ERDashboard({ city }: ERViewProps) {
         </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">조회 병원</p>
-          <p className="text-3xl font-extrabold text-on-surface mt-1">{erData.length}</p>
-        </div>
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">가용 병상 합계</p>
-          <p className={`text-3xl font-extrabold mt-1 ${totalAvailable > 10 ? 'text-secondary' : totalAvailable > 0 ? 'text-amber-400' : 'text-error'}`}>{totalAvailable}</p>
-        </div>
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">전체 병상</p>
-          <p className="text-3xl font-extrabold text-on-surface mt-1">{totalBeds}</p>
-        </div>
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">가용률</p>
-          <p className="text-3xl font-extrabold text-primary mt-1">{totalBeds > 0 ? Math.round(totalAvailable / totalBeds * 100) : 0}%</p>
-        </div>
-      </div>
-
-      {/* 긴급 알림 Ticker */}
+      {/* 긴급 알림 Ticker — 통계 카드 위에 배치 + 접기/열기 */}
       {messages.length > 0 && (
-        <div className="bg-error/10 border border-error/30 rounded-xl p-4 flex items-start gap-4">
-          <div className="bg-error/20 p-2 rounded-full mt-0.5">
-            <span className="material-symbols-outlined text-error text-xl block">campaign</span>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <h3 className="text-error font-extrabold mb-3">
+        <div className="bg-error/10 border border-error/30 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setNoticeOpen(!noticeOpen)}
+            className="w-full p-4 flex items-center gap-4 hover:bg-error/5 transition-colors"
+          >
+            <div className="bg-error/20 p-2 rounded-full">
+              <span className="material-symbols-outlined text-error text-xl block">campaign</span>
+            </div>
+            <h3 className="text-error font-extrabold flex-1 text-left">
               응급실 긴급 공지사항
               <span className="ml-2 text-xs font-mono text-error/60">{messages.length}건</span>
             </h3>
-            <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+            <span className={`material-symbols-outlined text-error/60 transition-transform duration-200 ${noticeOpen ? 'rotate-180' : ''}`}>
+              expand_more
+            </span>
+          </button>
+          {noticeOpen && (
+            <div className="px-4 pb-4 space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
               {messages.map((msg, i) => (
                 <div key={i} className="text-sm bg-surface-container-lowest/50 p-3 rounded-lg border border-outline-variant/5">
                   <div className="flex items-center gap-2 mb-1.5">
@@ -153,9 +156,36 @@ export default function ERDashboard({ city }: ERViewProps) {
                 </div>
               ))}
             </div>
-          </div>
+          )}
         </div>
       )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">조회 병원</p>
+          <p className="text-3xl font-extrabold text-on-surface mt-1">{erData.length}</p>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">응급실 가용</p>
+          <p className={`text-3xl font-extrabold mt-1 ${totalErAvailable > 10 ? 'text-secondary' : totalErAvailable > 0 ? 'text-amber-400' : 'text-error'}`}>{totalErAvailable}</p>
+          <p className="text-[10px] text-on-surface-variant mt-0.5">/ {totalErBeds > 0 ? totalErBeds : '—'} 병상</p>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">입원실 가용</p>
+          <p className={`text-3xl font-extrabold mt-1 ${totalWardAvailable > 5 ? 'text-blue-400' : totalWardAvailable > 0 ? 'text-amber-400' : 'text-on-surface-variant'}`}>{totalWardAvailable}</p>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">가용 합계</p>
+          <p className={`text-3xl font-extrabold mt-1 ${totalAvailable > 10 ? 'text-secondary' : totalAvailable > 0 ? 'text-amber-400' : 'text-error'}`}>{totalAvailable}</p>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">응급실 가용률</p>
+          <p className={`text-3xl font-extrabold mt-1 ${erUsageRate >= 30 ? 'text-secondary' : erUsageRate >= 10 ? 'text-amber-400' : erUsageRate >= 0 ? 'text-error' : 'text-on-surface-variant'}`}>
+            {erUsageRate >= 0 ? `${erUsageRate}%` : '—'}
+          </p>
+        </div>
+      </div>
 
       {/* Table */}
       <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
