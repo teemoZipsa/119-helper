@@ -243,6 +243,7 @@ export default function FacilityList({
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">관할구</th>
                     <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">상태</th>
                     <th className="px-6 py-4 text-right text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">좌표</th>
+                    <th className="px-2 py-4 text-center text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">길찾기</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
@@ -269,6 +270,18 @@ export default function FacilityList({
                       <td className="px-6 py-4 text-right text-xs text-on-surface-variant font-mono">
                         {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
                       </td>
+                      <td className="px-2 py-4 text-center">
+                        <a
+                          href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors text-[10px] font-bold border border-green-500/20"
+                          title="네이버 지도 길찾기"
+                        >
+                          <span className="material-symbols-outlined text-sm">navigation</span>
+                        </a>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,7 +306,19 @@ export default function FacilityList({
                     </span>
                   </div>
                   <p className="text-sm text-on-surface">{item.address}</p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">{item.type} · {item.district}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-on-surface-variant">{item.type} · {item.district}</p>
+                    <a
+                      href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20"
+                    >
+                      <span className="material-symbols-outlined text-xs">navigation</span>
+                      길찾기
+                    </a>
+                  </div>
                 </button>
               ))}
             </div>
