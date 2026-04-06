@@ -100,9 +100,10 @@ export async function fetchPolicyNews(): Promise<NewsItem[]> {
 }
 
 // 3. 기상특보 글로벌 배너용 단일 파싱
-export async function fetchWeatherAlerts(): Promise<NewsItem | null> {
+export async function fetchWeatherAlerts(city?: string): Promise<NewsItem | null> {
   try {
-    const alerts = await fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('기상특보 OR 날씨특보 발효')}`, '기상청 특보', true, 3);
+    const query = city ? `기상특보 OR 날씨특보 발효 ${city}` : '기상특보 OR 날씨특보 발효';
+    const alerts = await fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent(query)}`, '기상청 특보', true, 3);
     const sorted = processAndSort([alerts]);
     if (sorted.length > 0) {
       // 12시간 이내의 특보만 유효하다고 판단

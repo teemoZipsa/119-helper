@@ -91,7 +91,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   return (
     <div className="space-y-6">
       {/* 실시간 기상청 특보 배너 */}
-      <WeatherAlertBanner />
+      <WeatherAlertBanner city={cityLabel} />
 
       {/* Large Weather + ER Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
