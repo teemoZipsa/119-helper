@@ -8,11 +8,11 @@ interface Note {
 }
 
 const COLORS = [
-  { bg: 'bg-yellow-400/20', border: 'border-yellow-400/30', label: '노랑', dot: 'bg-yellow-400' },
-  { bg: 'bg-pink-400/20', border: 'border-pink-400/30', label: '분홍', dot: 'bg-pink-400' },
-  { bg: 'bg-blue-400/20', border: 'border-blue-400/30', label: '파랑', dot: 'bg-blue-400' },
-  { bg: 'bg-green-400/20', border: 'border-green-400/30', label: '초록', dot: 'bg-green-400' },
-  { bg: 'bg-purple-400/20', border: 'border-purple-400/30', label: '보라', dot: 'bg-purple-400' },
+  { bg: 'bg-yellow-100 dark:bg-yellow-500/20', border: 'border-yellow-300 dark:border-yellow-500/50', label: '노랑', dot: 'bg-yellow-400' },
+  { bg: 'bg-pink-100 dark:bg-pink-500/20', border: 'border-pink-300 dark:border-pink-500/50', label: '분홍', dot: 'bg-pink-400' },
+  { bg: 'bg-blue-100 dark:bg-blue-500/20', border: 'border-blue-300 dark:border-blue-500/50', label: '파랑', dot: 'bg-blue-400' },
+  { bg: 'bg-green-100 dark:bg-green-500/20', border: 'border-green-300 dark:border-green-500/50', label: '초록', dot: 'bg-green-400' },
+  { bg: 'bg-purple-100 dark:bg-purple-500/20', border: 'border-purple-300 dark:border-purple-500/50', label: '보라', dot: 'bg-purple-400' },
 ];
 
 interface StickyNotesProps {
@@ -203,8 +203,8 @@ export default function StickyNotes({ embedMode = false }: StickyNotesProps) {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm text-on-surface-variant/40 cursor-grab active:cursor-grabbing">drag_indicator</span>
-                    <span className="text-[10px] text-on-surface-variant">{note.createdAt}</span>
+                    <span className="material-symbols-outlined text-sm text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing">drag_indicator</span>
+                    <span className="text-[10px] text-gray-600 dark:text-gray-300 font-medium">{note.createdAt}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {isSelected && (
@@ -223,7 +223,7 @@ export default function StickyNotes({ embedMode = false }: StickyNotesProps) {
                   onChange={(e) => updateNote(note.id, e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="메모를 입력하세요..."
-                  className="bg-transparent border-none resize-none flex-1 min-h-[120px] text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-0"
+                  className="bg-transparent border-none resize-none flex-1 min-h-[120px] text-sm font-medium text-gray-900 dark:text-gray-50 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-0"
                 />
               </div>
             );
