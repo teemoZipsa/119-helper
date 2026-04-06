@@ -38,7 +38,10 @@ export const WildfireTicker: React.FC = () => {
       
       {/* CSS 마키(Marquee) 애니메이션 효과 */}
       <div className="flex-1 overflow-hidden whitespace-nowrap">
-        <div className="inline-block animate-[marquee_20s_linear_infinite] group-hover:pause">
+        <div 
+          className="inline-block animate-[marquee_20s_linear_infinite] group-hover:[animation-play-state:paused]"
+          style={{ animationDuration: `${Math.max(20, ongoingFires.length * 15)}s` }}
+        >
           {ongoingFires.map((fire) => (
             <span key={fire.id} className="mr-8">
               [🔥진화중] {fire.address} ({fire.occurredAt.substring(5, 16)} 발생)
