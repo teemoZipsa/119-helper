@@ -39,7 +39,12 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
   }, []);
 
   const displayFires = filterMode === 'local' && cityName
-    ? fires.filter(f => f.address.includes(cityName))
+    ? fires.filter(f => {
+        if (cityName === '광주') {
+          return f.address.includes('광주광역시') || (f.address.includes('광주') && !f.address.includes('경기'));
+        }
+        return f.address.includes(cityName);
+      })
     : fires;
 
   const ongoing = displayFires.filter(f => f.isOngoing);
