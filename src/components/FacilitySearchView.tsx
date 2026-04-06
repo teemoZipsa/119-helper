@@ -72,8 +72,8 @@ export default function FacilitySearchView({
   const [filter, setFilter] = useState('');
   const [selectedFacility, setSelectedFacility] = useState<FacilityItem | null>(null);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [kakaoMap, setKakaoMap] = useState<any>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
 
   // initialCategory가 변경되면 반영
@@ -177,19 +177,24 @@ export default function FacilitySearchView({
 
   // 카카오맵 초기화 — 대피소 카테고리에서만 사용
   useEffect(() => {
-    if (isFireWater) return; // 소방용수는 FacilityList가 KakaoMap 자체 보유
+    if (isFireWater || loading || apiError) return;
     if (!window.kakao || !window.kakao.maps || !mapRef.current) return;
+    
     window.kakao.maps.load(() => {
       const cityCenter = cityCenters[city] || cityCenters.seoul;
       const center = new window.kakao.maps.LatLng(cityCenter.lat, cityCenter.lng);
 
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.panTo(center);
+      if (kakaoMap && mapRef.current?.hasChildNodes()) {
+        kakaoMap.panTo(center);
         return;
       }
 
+      if (mapRef.current) {
+        mapRef.current.innerHTML = ''; // 기존 맵 초기화
+      }
+      
       const map = new window.kakao.maps.Map(mapRef.current, { center, level: 8 });
-      mapInstanceRef.current = map;
+      setKakaoMap(map);
 
       if (userPos) {
         new window.kakao.maps.Marker({
@@ -199,13 +204,12 @@ export default function FacilitySearchView({
         });
       }
     });
-  }, [city, userPos, isFireWater]);
+  }, [city, userPos, isFireWater, loading, apiError, kakaoMap]);
 
   // 마커 업데이트 (대피소용)
   useEffect(() => {
-    if (isFireWater) return;
-    const map = mapInstanceRef.current;
-    if (!map || !window.kakao) return;
+    if (isFireWater || !kakaoMap || !window.kakao) return;
+    
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
 
@@ -215,7 +219,7 @@ export default function FacilitySearchView({
 
     visible.forEach(fac => {
       const pos = new window.kakao.maps.LatLng(fac.lat, fac.lng);
-      const marker = new window.kakao.maps.Marker({ position: pos, map, title: fac.name });
+      const marker = new window.kakao.maps.Marker({ position: pos, map: kakaoMap, title: fac.name });
       const info = new window.kakao.maps.InfoWindow({
         content: `<div style="padding:6px 10px;font-size:12px;max-width:220px;line-height:1.4;">
           <strong style="color:#1a73e8;">${fac.name}</strong><br/>
@@ -225,19 +229,18 @@ export default function FacilitySearchView({
       });
       window.kakao.maps.event.addListener(marker, 'click', () => {
         setSelectedFacility(fac);
-        info.open(map, marker);
-        map.panTo(pos);
+        info.open(kakaoMap, marker);
+        kakaoMap.panTo(pos);
       });
       markersRef.current.push(marker);
     });
-  }, [facilities, filter, isFireWater]);
+  }, [facilities, filter, isFireWater, kakaoMap]);
 
   const handleSelectFacility = (fac: FacilityItem) => {
     setSelectedFacility(fac);
-    const map = mapInstanceRef.current;
-    if (map && window.kakao) {
-      map.panTo(new window.kakao.maps.LatLng(fac.lat, fac.lng));
-      map.setLevel(4);
+    if (kakaoMap && window.kakao) {
+      kakaoMap.panTo(new window.kakao.maps.LatLng(fac.lat, fac.lng));
+      kakaoMap.setLevel(4);
     }
   };
 
