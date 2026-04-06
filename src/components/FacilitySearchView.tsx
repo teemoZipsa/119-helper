@@ -123,24 +123,33 @@ export default function FacilitySearchView({
       } else if (activeCategory === 'tsunami') {
         const rawItems = await fetchTsunamiShelters();
         
-        items = rawItems.filter((it: any) => 
-          it.CTPRVN_NM === ctprvnNm || it.ctprvnNm === ctprvnNm || 
-          it.RDNMADR?.startsWith(ctprvnNm) || it.rdnmadr?.startsWith(ctprvnNm)
-        );
+        items = rawItems.filter((it: any) => {
+          const addr1 = it.SHNT_PLACE_DTL_POSITION || '';
+          const addr2 = it.RN_DTL_ADRES || '';
+          const addr3 = it.LNMADR || '';
+          const addr4 = it.RDNMADR || '';
+          const ctprvn = it.CTPRVN_NM || it.ctprvnNm || '';
+          
+          return ctprvn === ctprvnNm ||
+            addr1.startsWith(ctprvnNm) ||
+            addr2.startsWith(ctprvnNm) ||
+            addr3.startsWith(ctprvnNm) ||
+            addr4.startsWith(ctprvnNm);
+        });
       }
 
       if (items.length > 0) {
         const parsed: FacilityItem[] = items
           .map((it: any) => {
-            const lat = parseFloat(it.lat || it.LAT || it.ycord || it.YCRD || it.latitude || '0');
-            const lng = parseFloat(it.lot || it.LOT || it.xcord || it.XCRD || it.longitude || it.LON || it.lon || '0');
+            const lat = parseFloat(it.lat || it.LA || it.LAT || it.ycord || it.YCRD || it.latitude || '0');
+            const lng = parseFloat(it.lot || it.LO || it.LOT || it.xcord || it.XCRD || it.longitude || it.LON || it.lon || '0');
             if (!lat || !lng) return null;
 
             return {
-              name: it.fcltNm || it.FCLT_NM || it.shltNm || it.SHLT_NM || it.fclt_nm || it.shelter_nm || '무명 시설',
-              address: it.rdnmadr || it.RDNMADR || it.lnmadr || it.LNMADR || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
+              name: it.fcltNm || it.SHNT_PLACE_NM || it.FCLT_NM || it.shltNm || it.SHLT_NM || it.fclt_nm || it.shelter_nm || '무명 시설',
+              address: it.rdnmadr || it.SHNT_PLACE_DTL_POSITION || it.RN_DTL_ADRES || it.RDNMADR || it.lnmadr || it.LNMADR || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
               type: it.fcltSeNm || it.FCLT_SE_NM || it.shltSeNm || it.fclt_se_nm || it.shelter_type || '대피시설',
-              capacity: parseInt(it.shltCo || it.atchPrsnCo || it.acmPrsnCo || it.ACMP_PRSN_CO || it.acmp_prsn_co || '0') || 0,
+              capacity: parseInt(it.shltCo || it.PSBL_NMPR || it.atchPrsnCo || it.acmPrsnCo || it.ACMP_PRSN_CO || it.acmp_prsn_co || '0') || 0,
               lat,
               lng,
               category: activeCategory,
