@@ -3,6 +3,7 @@ import { fetchCivilShelters, fetchTsunamiShelters } from '../services/apiClient'
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
 import FacilityList from './FacilityList';
+import { loadKakaoMapSDK } from '../utils/kakaoLoader';
 
 interface FacilitySearchProps {
   city: string;
@@ -73,6 +74,7 @@ export default function FacilitySearchView({
   const [selectedFacility, setSelectedFacility] = useState<FacilityItem | null>(null);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [kakaoMap, setKakaoMap] = useState<any>(null);
+  const [sdkReady, setSdkReady] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<any[]>([]);
 
@@ -178,7 +180,14 @@ export default function FacilitySearchView({
   // 카카오맵 초기화 — 대피소 카테고리에서만 사용
   useEffect(() => {
     if (isFireWater || loading || apiError) return;
-    if (!window.kakao || !window.kakao.maps || !mapRef.current) return;
+    
+    // SDK가 아직 준비되지 않았다면 로드
+    if (!window.kakao || !window.kakao.maps) {
+      loadKakaoMapSDK().then(() => setSdkReady(true)).catch(console.error);
+      return; // 다시 렌더링될 때까지 대기
+    }
+    
+    if (!mapRef.current) return;
     
     window.kakao.maps.load(() => {
       const cityCenter = cityCenters[city] || cityCenters.seoul;
@@ -204,7 +213,7 @@ export default function FacilitySearchView({
         });
       }
     });
-  }, [city, userPos, isFireWater, loading, apiError, kakaoMap]);
+  }, [city, userPos, isFireWater, loading, apiError, kakaoMap, sdkReady]);
 
   // 마커 업데이트 (대피소용)
   useEffect(() => {
