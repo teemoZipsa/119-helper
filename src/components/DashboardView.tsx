@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getRealtimeAirQuality, type AirQualityData } from '../services/airQualityApi';
 import { getERRealTimeBeds, CITY_TO_SIDO, type ERRealTimeData } from '../services/erApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather } from '../services/weatherApi';
@@ -53,7 +53,46 @@ export const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'policy', tab: 'policy', icon: 'gavel', label: '법안/지침', color: 'text-green-500', category: '행정/기타' },
 ];
 
-const DEFAULT_TOOLS = ['calc_water', 'field_timer', 'building'];
+const DEFAULT_TOOLS = ['calc_water', 'field_timer', 'building', 'er'];
+
+const WeatherParticles = React.memo(({ type }: { type: string }) => {
+  if (!type || type === '없음') return null;
+  
+  const isRain = type.includes('비') || type.includes('소나기') || type.includes('빗방울');
+  const isSnow = type.includes('눈');
+  
+  if (!isRain && !isSnow) return null;
+
+  const count = isRain ? 20 : 30; // 비는 20줄기, 눈은 30송이 정도
+  const particles = Array.from({ length: count }).map((_, i) => {
+    const left = Math.random() * 100 + '%';
+    const delay = Math.random() * 2 + 's';
+    const duration = isRain ? (0.5 + Math.random() * 0.3) + 's' : (2 + Math.random() * 3) + 's';
+    const size = isSnow ? (3 + Math.random() * 4) + 'px' : undefined;
+    const opacity = 0.3 + Math.random() * 0.5;
+
+    return (
+      <div 
+        key={i} 
+        className={isRain ? 'weather-particle-rain' : 'weather-particle-snow'} 
+        style={{
+          left,
+          animationDelay: delay,
+          animationDuration: duration,
+          opacity,
+          width: size,
+          height: size
+        }}
+      />
+    );
+  });
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+      {particles}
+    </div>
+  );
+});
 
 export default function DashboardView({ onNavigate, city, fireFacilities, isLoadingFacilities, cityIndex }: DashboardProps) {
   const cityLabel = cityNames[city] || '서울';
@@ -156,8 +195,10 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           />
           {/* Dark/Colored overlay for text readability & weather mood */}
           <div className={`absolute inset-0 bg-gradient-to-t transition-colors duration-1000 ${getBgOverlay()}`} />
+
+          <WeatherParticles type={weather?.precipType || '없음'} />
           
-          <div className="flex items-start justify-between relative z-10">
+          <div className="flex items-start justify-between relative z-30">
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-widest text-white/70">현재 날씨</p>
@@ -187,7 +228,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               </div>
             </div>
           </div>
-          <div className="flex gap-3 md:gap-6 mt-4 md:mt-6 relative z-10 flex-wrap">
+          <div className="flex gap-3 md:gap-6 mt-4 md:mt-6 relative z-30 flex-wrap">
             <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
               <span className="text-xs text-white/70">미세먼지</span>
               <span className={`text-xs font-bold ${

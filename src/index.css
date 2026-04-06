@@ -234,3 +234,32 @@ h1, h2, h3, h4, h5, h6 {
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+@keyframes rainfall {
+  0% { transform: translateY(-20px) translateX(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  80% { opacity: 0.8; }
+  100% { transform: translateY(300px) translateX(-40px); opacity: 0; }
+}
+
+@keyframes snowfall {
+  0% { transform: translateY(-20px) translateX(0); opacity: 0; }
+  20% { opacity: 0.8; }
+  50% { transform: translateY(150px) translateX(20px); opacity: 0.8; }
+  100% { transform: translateY(300px) translateX(-20px); opacity: 0; }
+}
+
+.weather-particle-rain {
+  position: absolute;
+  width: 1px;
+  height: 25px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.6));
+  animation: rainfall linear infinite;
+}
+
+.weather-particle-snow {
+  position: absolute;
+  background: #fff;
+  border-radius: 50%;
+  animation: snowfall linear infinite;
+  box-shadow: 0 0 3px rgba(255,255,255,0.8);
+}
