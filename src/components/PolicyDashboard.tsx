@@ -5,22 +5,20 @@ export default function PolicyDashboard() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadNews = async (forceRefresh = false) => {
     setLoading(true);
-    fetchPolicyNews().then(data => {
-      if (isMounted) {
-        setNews(data);
-        setLoading(false);
-      }
-    });
+    const data = await fetchPolicyNews(forceRefresh);
+    setNews(data);
+    setLoading(false);
+  };
 
-    return () => { isMounted = false; };
+  useEffect(() => {
+    loadNews();
   }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between border-b border-outline-variant/20 pb-4">
+      <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
         <div>
           <h2 className="text-2xl font-extrabold text-on-surface flex items-center gap-2 font-headline">
             <span className="material-symbols-outlined text-purple-500">gavel</span>
@@ -28,10 +26,13 @@ export default function PolicyDashboard() {
           </h2>
           <p className="text-on-surface-variant text-sm mt-1">소방청, 행정안전부, 보건복지부 지침 및 국회 입법예고</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg">
-          <span className="material-symbols-outlined text-[16px]">sync</span>
-          실시간 자동 반영
-        </div>
+        <button 
+          onClick={() => loadNews(true)}
+          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm"
+          title="새로고침"
+        >
+          <span className={`material-symbols-outlined ${loading && news.length === 0 ? 'animate-spin' : ''}`}>refresh</span>
+        </button>
       </div>
 
       {loading ? (

@@ -16,26 +16,36 @@ export default function NewsDashboard({ city }: NewsDashboardProps) {
   };
   const displayCity = cityNames[city] || city;
 
+  const loadNews = async (forceRefresh = false) => {
+    setLoading(true);
+    const data = await fetchLocalNews(displayCity, forceRefresh);
+    setNews(data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function loadNews() {
-      setLoading(true);
-      const data = await fetchLocalNews(displayCity);
-      setNews(data);
-      setLoading(false);
-    }
     loadNews();
   }, [displayCity]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>newspaper</span>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>newspaper</span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-on-surface font-headline">{displayCity} 소방 뉴스</h1>
+            <p className="text-sm text-on-surface-variant font-medium mt-1">지역 소방서 및 구조 관련 최신 뉴스</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-extrabold text-on-surface font-headline">{displayCity} 소방 뉴스</h1>
-          <p className="text-sm text-on-surface-variant font-medium mt-1">지역 소방서 및 구조 관련 최신 뉴스</p>
-        </div>
+        <button 
+          onClick={() => loadNews(true)}
+          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm"
+          title="새로고침"
+        >
+          <span className={`material-symbols-outlined ${loading && news.length === 0 ? 'animate-spin' : ''}`}>refresh</span>
+        </button>
       </div>
 
       {loading ? (
