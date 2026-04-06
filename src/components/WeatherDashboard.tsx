@@ -77,6 +77,9 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   const formatDate = (d: string) => `${d.slice(4, 6)}/${d.slice(6, 8)}`;
 
   const getBgGradient = () => {
+    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) {
+      return 'from-yellow-900/80 via-amber-800/40 to-orange-900/20 border-yellow-500/30 shadow-[inset_0_0_80px_rgba(202,138,4,0.2)]';
+    }
     if (current.precipType.includes('비') || current.precipType.includes('소나기') || current.precipType === '빗방울') {
       return 'from-slate-900 via-blue-900/40 to-sky-900/20 border-blue-500/30 shadow-[inset_0_0_80px_rgba(30,58,138,0.2)]';
     }
@@ -93,6 +96,15 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   };
 
   const getBgImage = () => {
+    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) {
+      return '/images/weather/dust.png';
+    }
+    if (current.precipType === '소나기') {
+      return '/images/weather/shower.png';
+    }
+    if ((current.precipType.includes('비') || current.precipType === '빗방울') && current.windSpeed >= 8) {
+      return '/images/weather/thunder.png';
+    }
     if (current.precipType.includes('비') || current.precipType.includes('소나기') || current.precipType === '빗방울') return '/images/weather/rain.png';
     if (current.precipType.includes('눈')) return '/images/weather/snow.png';
     if (current.sky === '맑음') return '/images/weather/sunny.png';
@@ -101,6 +113,7 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   };
 
   const getAccentColor = () => {
+    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) return 'text-amber-300';
     if (current.precipType.includes('비') || current.precipType.includes('소나기') || current.precipType === '빗방울') return 'text-blue-300/80';
     if (current.precipType.includes('눈')) return 'text-indigo-300/80';
     if (current.sky === '맑음') return 'text-amber-400/80';
