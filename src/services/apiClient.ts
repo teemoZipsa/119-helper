@@ -5,6 +5,8 @@
  * 프론트엔드에는 API 키가 존재하지 않습니다.
  */
 
+import tsunamiData from '../../public/data/tsunami.json';
+
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://119-helper-api.teemozipsa.workers.dev';
 
 const API_TIMEOUT_MS = 15_000; // 15초 타임아웃
@@ -137,10 +139,8 @@ export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRo
 
 export async function fetchTsunamiShelters() {
   // 공공데이터 서버가 Cloudflare 등 해외망 접근을 SSL 레벨(525)에서 차단하므로
-  // 미리 추출해둔 정적 JSON 데이터를 활용 (변경이 거의 없는 데이터적 특성 고려)
-  const res = await fetch('/data/tsunami.json');
-  if (!res.ok) throw new Error('지진해일 대피소 데이터를 불러오지 못했습니다.');
-  return res.json();
+  // 미리 추출해둔 정적 JSON 데이터를 빌드에 아예 포함시킵니다. (경로 404 원천 차단)
+  return tsunamiData;
 }
 
 // ═══════ 민방위대피시설 ═══════
