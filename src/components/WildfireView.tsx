@@ -9,9 +9,9 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [windInfo, setWindInfo] = useState<Record<string, CurrentWeather>>({});
 
-  const loadData = async () => {
+  const loadData = async (forceRefresh = false) => {
     setIsLoading(true);
-    const data = await fetchWildfires('200', '1');
+    const data = await fetchWildfires('200', '1', forceRefresh);
     setFires(data);
     setLastUpdated(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setIsLoading(false);
@@ -34,7 +34,7 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 5 * 60 * 1000);
+    const interval = setInterval(() => loadData(true), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -92,7 +92,7 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
             </div>
           )}
           <button 
-            onClick={loadData}
+            onClick={() => loadData(true)}
             className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm"
             title="새로고침"
           >

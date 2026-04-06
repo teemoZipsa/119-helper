@@ -11,12 +11,20 @@ export interface WildfireItem {
   lng?: number; // FRSTFR_PSTN_XCRD
 }
 
-export async function fetchWildfires(numOfRows = '200', pageNo = '1'): Promise<WildfireItem[]> {
+let cachedWildfires: WildfireItem[] | null = null;
+let lastFetchTime = 0;
+const CACHE_TTL = 3 * 60 * 1000; // 3분 캐시
+
+export async function fetchWildfires(numOfRows = '200', pageNo = '1', forceRefresh = false): Promise<WildfireItem[]> {
+  if (!forceRefresh && cachedWildfires && Date.now() - lastFetchTime < CACHE_TTL) {
+    return cachedWildfires;
+  }
+
   try {
     const data = await apiFetch<{ body: any[], totalCount?: number }>('/api/wildfire', { numOfRows, pageNo });
     if (!data || !data.body) return [];
 
-    return data.body.map((item: any) => {
+    const items = data.body.map((item: any) => {
       const extinguished = item.EXTNGS_CMPTN_DT || null;
       return {
         id: item.FRSTFR_INFO_ID || Math.random().toString(),
@@ -28,9 +36,13 @@ export async function fetchWildfires(numOfRows = '200', pageNo = '1'): Promise<W
         lat: item.FRSTFR_PSTN_YCRD ? parseFloat(item.FRSTFR_PSTN_YCRD) : undefined,
         lng: item.FRSTFR_PSTN_XCRD ? parseFloat(item.FRSTFR_PSTN_XCRD) : undefined,
       };
-    }).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)); // 최신순 정렬
+    }).sort((a: any, b: any) => b.occurredAt.localeCompare(a.occurredAt)); // 최신순 정렬
+
+    cachedWildfires = items;
+    lastFetchTime = Date.now();
+    return items;
   } catch (err) {
     console.error('산불 데이터 조회 실패:', err);
-    return [];
+    return cachedWildfires || [];
   }
 }
