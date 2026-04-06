@@ -393,18 +393,18 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
 
       {/* Embedded Sticky Notes */}
       <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden shadow-sm transition-all">
-        <button 
-          onClick={() => setShowMemo(!showMemo)}
-          className="w-full p-3 md:p-4 border-b border-outline-variant/10 flex items-center justify-between hover:bg-surface-container/50 transition-colors"
-        >
-          <div className="flex items-center gap-2">
+        <div className="flex items-center border-b border-outline-variant/10 p-3 md:p-4">
+          <button 
+            onClick={() => setShowMemo(!showMemo)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none"
+          >
             <span className="material-symbols-outlined text-pink-400 text-xl">sticky_note_2</span>
             <h3 className="text-lg font-extrabold text-on-surface font-headline">메모장</h3>
-          </div>
-          <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-300 ${showMemo ? 'rotate-180' : ''}`}>
-            expand_more
-          </span>
-        </button>
+            <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-300 ${showMemo ? 'rotate-180' : ''}`}>
+              expand_more
+            </span>
+          </button>
+        </div>
         {showMemo && (
           <div className="p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300 bg-surface/30">
             <StickyNotes embedMode />
