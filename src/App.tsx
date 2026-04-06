@@ -564,8 +564,10 @@ export default function App() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-28 lg:pb-6 custom-scrollbar relative">
-          {renderContent()}
+        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+          <div className="p-4 md:p-6 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-6 min-h-full">
+            {renderContent()}
+          </div>
         </div>
 
         {/* Mobile Bottom Navigation */}
