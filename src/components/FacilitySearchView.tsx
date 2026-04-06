@@ -121,14 +121,18 @@ export default function FacilitySearchView({
         const data = await fetchCivilShelters(ctprvnNm);
         items = Array.isArray(data) ? data : [];
       } else if (activeCategory === 'tsunami') {
-        const data = await fetchTsunamiShelters(ctprvnNm);
-        // API가 필터링을 지원하지 않는 경우 전체 목록이 오므로 프론트엔드에서 필터링
+        const data: any = await fetchTsunamiShelters(ctprvnNm);
+        
+        // Worker가 에러 객체를 반환한 경우 (디버깅용)
+        if (data && !Array.isArray(data) && data.error) {
+          throw new Error(`[${data.error}] ${data.message || 'API 호출 실패'}${data.detail ? ` (${data.detail})` : ''}`);
+        }
+
         const rawItems = Array.isArray(data) ? data : [];
         items = rawItems.filter((it: any) => 
           it.CTPRVN_NM === ctprvnNm || it.ctprvnNm === ctprvnNm || 
           it.RDNMADR?.startsWith(ctprvnNm) || it.rdnmadr?.startsWith(ctprvnNm)
         );
-        // 전국에 600여개 뿐이므로 광주같은 내륙은 데이터가 없을 확률이 매우 높음
       }
 
       if (items.length > 0) {

@@ -24,24 +24,42 @@ export async function handleTsunamiShelter(url: URL, apiKey?: string): Promise<{
   //   qs.set('ctprvnNm', ctprvnNm);
   // }
 
-  // SSL 오류 방지를 위해 http 시도 (safetydata는 보통 지원함)
-  const apiUrl = `http://www.safetydata.go.kr/V2/api/DSSP-IF-10944?${qs}`;
+  // SSL 이슈가 있을 수 있어 https와 http를 신중히 선택.
+  // Wildfire가 성공한 것과 동일한 설정을 사용하되 더 견고하게 구성.
+  const apiUrl = `https://www.safetydata.go.kr/V2/api/DSSP-IF-10944?${qs}`;
 
-  const res = await fetch(apiUrl);
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      }
+    });
 
-  if (!res.ok) {
-    throw new Error(`Tsunami Shelter API ${res.status}: ${res.statusText}`);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'No response body');
+      return { 
+        data: { error: `API_HTTP_${res.status}`, message: res.statusText, detail: errorText.slice(0, 100) }, 
+        cacheTtl: 0 
+      };
+    }
+
+    const data: any = await res.json();
+
+    if (data?.header?.resultCode !== '00') {
+      return { 
+        data: { error: `API_RESULT_${data?.header?.resultCode}`, message: data?.header?.resultMsg || 'Unknown API Error' }, 
+        cacheTtl: 0 
+      };
+    }
+
+    const items = data?.body || [];
+    return { data: items, cacheTtl: 86400 };
+  } catch (err: any) {
+    return { 
+      data: { error: 'WORKER_FETCH_FAILED', message: err.message }, 
+      cacheTtl: 0 
+    };
   }
-
-  const data: any = await res.json();
-
-  // DSSP 응답 구조 체크
-  if (data?.header?.resultCode !== '00') {
-    throw new Error(`Tsunami Shelter API error: ${data?.header?.resultMsg || 'Unknown error'}`);
-  }
-
-  // body 배열이 비어있을 수도 있으므로 안전하게 반환
-  const items = data?.body || [];
-
-  return { data: items, cacheTtl: 86400 }; // 24시간 캐시 (자주 안바뀌는 데이터)
 }
