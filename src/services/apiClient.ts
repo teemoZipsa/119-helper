@@ -135,6 +135,10 @@ export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRo
   return apiFetch<any[]>('/api/shelter', { ctprvnNm, signguNm: signguNm || '', numOfRows, pageNo });
 }
 
+export async function fetchTsunamiShelters(ctprvnNm: string, numOfRows = '1000', pageNo = '1') {
+  return apiFetch<any[]>('/api/tsunami-shelter', { ctprvnNm, numOfRows, pageNo });
+}
+
 // ═══════ 민방위대피시설 ═══════
 
 export async function fetchCivilShelters(ctprvnNm: string, sgnNm?: string, numOfRows = '200', pageNo = '1') {

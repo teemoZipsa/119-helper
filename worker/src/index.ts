@@ -23,6 +23,7 @@ import { handleFireDamage } from './routes/fireDamage';
 import { handleCivilShelter } from './routes/civilShelter';
 import { newsHandler } from './routes/news';
 import { handleWildfire } from './routes/wildfire';
+import { handleTsunamiShelter } from './routes/tsunamiShelter';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -40,6 +41,7 @@ export interface Env {
   FIRE_OBJECT_API_KEY: string;
   FIRE_DAMAGE_API_KEY: string;
   WILDFIRE_API_KEY: string;
+  TSUNAMI_SHELTER_API_KEY: string;
   ENVIRONMENT: string;
 }
 
@@ -114,6 +116,7 @@ export default {
       else if (path === '/api/fire-damage') result = await handleFireDamage(url, env.FIRE_DAMAGE_API_KEY);
       else if (path.startsWith('/api/fire-annual/')) result = await handleAnnualFireStats(path, url, env.ANNUAL_FIRE_API_KEY);
       else if (path === '/api/wildfire') result = await handleWildfire(url, env.WILDFIRE_API_KEY);
+      else if (path === '/api/tsunami-shelter') result = await handleTsunamiShelter(url, env.TSUNAMI_SHELTER_API_KEY);
       else if (path === '/api/news') {
         isNews = true;
         newsResponse = await newsHandler(request, env);

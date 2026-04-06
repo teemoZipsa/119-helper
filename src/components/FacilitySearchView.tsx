@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchCivilShelters } from '../services/apiClient';
+import { fetchCivilShelters, fetchTsunamiShelters } from '../services/apiClient';
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
 import FacilityList from './FacilityList';
@@ -121,24 +121,22 @@ export default function FacilitySearchView({
         const data = await fetchCivilShelters(ctprvnNm);
         items = Array.isArray(data) ? data : [];
       } else if (activeCategory === 'tsunami') {
-        // fetchShelters는 src/services/apiClient.ts에 정의되어 있음
-        const { fetchShelters } = await import('../services/apiClient');
-        const data = await fetchShelters(ctprvnNm);
+        const data = await fetchTsunamiShelters(ctprvnNm);
         items = Array.isArray(data) ? data : [];
       }
 
       if (items.length > 0) {
         const parsed: FacilityItem[] = items
           .map((it: any) => {
-            const lat = parseFloat(it.lat || it.ycord || it.latitude || '0');
-            const lng = parseFloat(it.lot || it.xcord || it.longitude || it.lon || '0');
+            const lat = parseFloat(it.lat || it.LAT || it.ycord || it.YCRD || it.latitude || '0');
+            const lng = parseFloat(it.lot || it.LOT || it.xcord || it.XCRD || it.longitude || it.LON || it.lon || '0');
             if (!lat || !lng) return null;
 
             return {
-              name: it.fcltNm || it.shltNm || it.fclt_nm || it.shelter_nm || '무명 시설',
-              address: it.rdnmadr || it.lnmadr || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
-              type: it.fcltSeNm || it.shltSeNm || it.fclt_se_nm || '대피시설',
-              capacity: parseInt(it.shltCo || it.atchPrsnCo || it.acmPrsnCo || '0') || 0,
+              name: it.fcltNm || it.FCLT_NM || it.shltNm || it.SHLT_NM || it.fclt_nm || it.shelter_nm || '무명 시설',
+              address: it.rdnmadr || it.RDNMADR || it.lnmadr || it.LNMADR || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
+              type: it.fcltSeNm || it.FCLT_SE_NM || it.shltSeNm || it.fclt_se_nm || it.shelter_type || '대피시설',
+              capacity: parseInt(it.shltCo || it.atchPrsnCo || it.acmPrsnCo || it.ACMP_PRSN_CO || it.acmp_prsn_co || '0') || 0,
               lat,
               lng,
               category: activeCategory,
