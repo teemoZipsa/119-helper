@@ -5,8 +5,9 @@ import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather 
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
 import WeatherAlertBanner from './WeatherAlertBanner';
+import StickyNotes from './StickyNotes';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire' | 'statistics';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire' | 'statistics';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -28,6 +29,10 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   const [erList, setErList] = useState<ERRealTimeData[]>([]);
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  
+  // 섹션 접기/펴기 상태
+  const [showQuickTools, setShowQuickTools] = useState(true);
+  const [showMemo, setShowMemo] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -224,29 +229,60 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
       </div>
 
       {/* Quick Tools */}
-      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
-        <div className="p-6 border-b border-outline-variant/10">
-          <h3 className="text-lg font-extrabold text-on-surface font-headline">🛠️ 빠른 도구</h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 p-4 md:p-6">
-          {[
-            { icon: 'science', label: '유해물질', tab: 'calculator' as TabId, color: 'text-orange-400' },
-            { icon: 'water_drop', label: '수압 계산기', tab: 'calculator' as TabId, color: 'text-blue-400' },
-            { icon: 'straighten', label: '호스 전개', tab: 'calculator' as TabId, color: 'text-green-400' },
-            { icon: 'timer', label: '공기호흡기', tab: 'calculator' as TabId, color: 'text-amber-400' },
-            { icon: 'apartment', label: '건축물대장', tab: 'building' as TabId, color: 'text-purple-400' },
-            { icon: 'sticky_note_2', label: '메모장', tab: 'memo' as TabId, color: 'text-pink-400' },
-          ].map(tool => (
-            <button
-              key={tool.label}
-              onClick={() => onNavigate(tool.tab)}
-              className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all group"
-            >
-              <span className={`material-symbols-outlined text-3xl ${tool.color} group-hover:scale-110 transition-transform`}>{tool.icon}</span>
-              <span className="text-sm font-medium text-on-surface">{tool.label}</span>
-            </button>
-          ))}
-        </div>
+      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden shadow-sm transition-all">
+        <button 
+          onClick={() => setShowQuickTools(!showQuickTools)}
+          className="w-full p-4 md:p-6 border-b border-outline-variant/10 flex items-center justify-between hover:bg-surface-container/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-xl">build_circle</span>
+            <h3 className="text-lg font-extrabold text-on-surface font-headline">빠른 도구</h3>
+          </div>
+          <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-300 ${showQuickTools ? 'rotate-180' : ''}`}>
+            expand_more
+          </span>
+        </button>
+        {showQuickTools && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 p-4 md:p-6 animate-in slide-in-from-top-4 fade-in duration-300">
+            {[
+              { icon: 'science', label: '유해물질', tab: 'calculator' as TabId, color: 'text-orange-400' },
+              { icon: 'water_drop', label: '수압 계산기', tab: 'calculator' as TabId, color: 'text-blue-400' },
+              { icon: 'straighten', label: '호스 전개', tab: 'calculator' as TabId, color: 'text-green-400' },
+              { icon: 'timer', label: '공기호흡기', tab: 'calculator' as TabId, color: 'text-amber-400' },
+              { icon: 'apartment', label: '건축물대장', tab: 'building' as TabId, color: 'text-purple-400' },
+            ].map(tool => (
+              <button
+                key={tool.label}
+                onClick={() => onNavigate(tool.tab)}
+                className="flex flex-col items-center gap-3 p-5 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all group border border-transparent hover:border-outline-variant/20"
+              >
+                <span className={`material-symbols-outlined text-3xl ${tool.color} group-hover:scale-110 transition-transform`}>{tool.icon}</span>
+                <span className="text-sm font-medium text-on-surface">{tool.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Embedded Sticky Notes */}
+      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden shadow-sm transition-all">
+        <button 
+          onClick={() => setShowMemo(!showMemo)}
+          className="w-full p-4 md:p-6 border-b border-outline-variant/10 flex items-center justify-between hover:bg-surface-container/50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-pink-400 text-xl">sticky_note_2</span>
+            <h3 className="text-lg font-extrabold text-on-surface font-headline">메모장</h3>
+          </div>
+          <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-300 ${showMemo ? 'rotate-180' : ''}`}>
+            expand_more
+          </span>
+        </button>
+        {showMemo && (
+          <div className="p-4 md:p-6 animate-in slide-in-from-top-4 fade-in duration-300 bg-surface/30">
+            <StickyNotes embedMode />
+          </div>
+        )}
       </section>
     </div>
   );

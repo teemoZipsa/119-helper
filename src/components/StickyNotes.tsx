@@ -15,7 +15,11 @@ const COLORS = [
   { bg: 'bg-purple-400/20', border: 'border-purple-400/30', label: '보라', dot: 'bg-purple-400' },
 ];
 
-export default function StickyNotes() {
+interface StickyNotesProps {
+  embedMode?: boolean;
+}
+
+export default function StickyNotes({ embedMode = false }: StickyNotesProps) {
   const [notes, setNotes] = useState<Note[]>(() => {
     try {
       const saved = localStorage.getItem('119helper-notes');
@@ -128,15 +132,17 @@ export default function StickyNotes() {
     : -1;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold text-on-surface font-headline">📝 메모장</h2>
-          <p className="text-sm text-on-surface-variant mt-1">
-            스티커 메모 — 브라우저에 자동 저장됩니다
-            {selectedNoteId && <span className="ml-2 text-primary font-bold">• 색상을 클릭하면 선택된 메모의 색이 바뀝니다</span>}
-          </p>
-        </div>
+    <div className={embedMode ? "space-y-4" : "space-y-6"}>
+      <div className={`flex items-center flex-wrap gap-3 ${embedMode ? 'justify-end' : 'justify-between'}`}>
+        {!embedMode && (
+          <div>
+            <h2 className="text-2xl font-extrabold text-on-surface font-headline">📝 메모장</h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              스티커 메모 — 브라우저에 자동 저장됩니다
+              {selectedNoteId && <span className="ml-2 text-primary font-bold">• 색상을 클릭하면 선택된 메모의 색이 바뀝니다</span>}
+            </p>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
             {COLORS.map((c, i) => {

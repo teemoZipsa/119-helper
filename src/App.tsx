@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
-import StickyNotes from './components/StickyNotes';
 import Calculators from './components/Calculators';
 import Calendar from './components/Calendar';
 import WeatherDashboard from './components/WeatherDashboard';
@@ -51,18 +50,17 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', icon: 'dashboard', label: '대시보드', filled: true },
   { id: 'weather', icon: 'cloud', label: '기상 정보' },
-  { id: 'shelter', icon: 'location_city', label: '시설 조회' },
   { id: 'er', icon: 'local_hospital', label: '응급실 현황' },
   { id: 'news', icon: 'newspaper', label: '뉴스' },
   { id: 'building', icon: 'apartment', label: '건축물대장' },
   { id: 'multiuse', icon: 'store', label: '다중이용업소' },
+  { id: 'shelter', icon: 'location_city', label: '시설 조회' },
   { id: 'statistics', icon: 'bar_chart', label: '통계' },
   { id: 'manual', icon: 'menu_book', label: '대응 매뉴얼' },
   { id: 'calculator', icon: 'calculate', label: '계산기' },
   { id: 'field-timer', icon: 'timer', label: '현장 타이머' },
   { id: 'unit-converter', icon: 'swap_horiz', label: '단위 변환' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
-  { id: 'memo', icon: 'sticky_note_2', label: '메모장' },
   { id: 'policy', icon: 'gavel', label: '법안/지침' },
 ];
 
@@ -345,7 +343,6 @@ export default function App() {
       case 'field-timer': return <FieldTimer />;
       case 'unit-converter': return <UnitConverter />;
       case 'calendar': return <Calendar />;
-      case 'memo': return <StickyNotes />;
       case 'news': return <NewsDashboard city={city} />;
       case 'policy': return <PolicyDashboard />;
       default: return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} cityIndex={cityIndex} />;

@@ -16,12 +16,11 @@ export async function handleShelter(url: URL, apiKey: string): Promise<{ data: u
   if (ctprvnNm) params.set('ctprvnNm', ctprvnNm);
   if (signguNm) params.set('signguNm', signguNm);
 
-  // api.data.go.kr → HTTPS 호출 (redirect: 'follow'로 리다이렉트 대응)
+  // api.data.go.kr → HTTP 호출 (Cloudflare SSL 525 오류 방지)
   const res = await fetch(
-    `https://api.data.go.kr/openapi/tn_pubr_public_shelter_api?${params}`,
+    `http://api.data.go.kr/openapi/tn_pubr_public_shelter_api?${params}`,
     {
-      headers: { 'User-Agent': '119-helper-worker/1.0' },
-      redirect: 'follow',
+      headers: { 'User-Agent': '119-helper-worker/1.0' }
     }
   );
   if (!res.ok) throw new Error(`Shelter API ${res.status}`);

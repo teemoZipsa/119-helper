@@ -53,6 +53,7 @@ const CATEGORIES = [
   { id: 'hydrants', label: '소화전', icon: 'fire_hydrant', desc: '소화전 · 비상소화장치', isFireWater: true },
   { id: 'waterTowers', label: '급수탑/저수조', icon: 'water_pump', desc: '급수탑 · 저수조', isFireWater: true },
   { id: 'civil', label: '민방위 대피시설', icon: 'shield', desc: '전시/재난 대비 지하 대피시설', isFireWater: false },
+  { id: 'tsunami', label: '지진해일 대피소', icon: 'tsunami', desc: '지진해일 긴급 대피장소', isFireWater: false },
 ];
 
 export default function FacilitySearchView({
@@ -113,11 +114,20 @@ export default function FacilitySearchView({
     setSelectedFacility(null);
 
     try {
+      let items: any[] = [];
+      const ctprvnNm = cityToCtprvn[city] || '서울특별시';
+
       if (activeCategory === 'civil') {
-        const ctprvnNm = cityToCtprvn[city] || '서울특별시';
         const data = await fetchCivilShelters(ctprvnNm);
-        const items = Array.isArray(data) ? data : [];
-        
+        items = Array.isArray(data) ? data : [];
+      } else if (activeCategory === 'tsunami') {
+        // fetchShelters는 src/services/apiClient.ts에 정의되어 있음
+        const { fetchShelters } = await import('../services/apiClient');
+        const data = await fetchShelters(ctprvnNm);
+        items = Array.isArray(data) ? data : [];
+      }
+
+      if (items.length > 0) {
         const parsed: FacilityItem[] = items
           .map((it: any) => {
             const lat = parseFloat(it.lat || it.ycord || it.latitude || '0');
@@ -131,7 +141,7 @@ export default function FacilitySearchView({
               capacity: parseInt(it.shltCo || it.atchPrsnCo || it.acmPrsnCo || '0') || 0,
               lat,
               lng,
-              category: 'civil',
+              category: activeCategory,
             } as FacilityItem;
           })
           .filter((f): f is FacilityItem => f !== null);
