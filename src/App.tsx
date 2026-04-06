@@ -350,7 +350,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-on-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background text-on-background">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -564,7 +564,7 @@ export default function App() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 lg:pb-6 custom-scrollbar relative">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-28 lg:pb-6 custom-scrollbar relative">
           {renderContent()}
         </div>
 
