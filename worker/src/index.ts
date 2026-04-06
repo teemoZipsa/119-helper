@@ -5,7 +5,7 @@
  * 프론트엔드(SPA)는 이 Worker의 /api/* 엔드포인트만 호출합니다.
  */
 
-import { handleOptions, jsonResponse, errorResponse, isOriginAllowed, checkRateLimit, rateLimitResponse } from './middleware/cors';
+import { handleOptions, jsonResponse, errorResponse, isOriginAllowed, checkRateLimit, rateLimitResponse, corsHeaders } from './middleware/cors';
 import { handleWeather } from './routes/weather';
 import { handleAir } from './routes/air';
 import { handleER } from './routes/er';
@@ -188,7 +188,33 @@ export default {
 
       // ═══════ 뉴스/소식 (Google News RSS 프록시) ═══════
       if (path === '/api/news') {
-        return await newsHandler(request, env);
+        const cache = caches.default;
+        const cacheKey = new Request(url.toString(), { method: 'GET' });
+        const cached = await cache.match(cacheKey);
+        if (cached) {
+          // 캐시된 응답에 CORS 헤더 재적용 (캐시된 응답은 헤더 수정이 불가능하므로 복제 후 수정)
+          const response = new Response(cached.body, cached);
+          const cors = corsHeaders(request);
+          for (const [k, v] of Object.entries(cors)) {
+            response.headers.set(k, String(v));
+          }
+          return response;
+        }
+
+        const response = await newsHandler(request, env);
+        if (response.status === 200) {
+          const cacheableResponse = response.clone();
+          cacheableResponse.headers.set('Cache-Control', 'public, max-age=1800'); // 30분 캐시
+          await cache.put(cacheKey, cacheableResponse);
+        }
+        
+        // CORS 헤더 적용
+        const finalResponse = new Response(response.body, response);
+        const cors = corsHeaders(request);
+        for (const [k, v] of Object.entries(cors)) {
+          finalResponse.headers.set(k, String(v));
+        }
+        return finalResponse;
       }
 
       // 404
