@@ -121,14 +121,8 @@ export default function FacilitySearchView({
         const data = await fetchCivilShelters(ctprvnNm);
         items = Array.isArray(data) ? data : [];
       } else if (activeCategory === 'tsunami') {
-        const data: any = await fetchTsunamiShelters(ctprvnNm);
+        const rawItems = await fetchTsunamiShelters();
         
-        // Worker가 에러 객체를 반환한 경우 (디버깅용)
-        if (data && !Array.isArray(data) && data.error) {
-          throw new Error(`[${data.error}] ${data.message || 'API 호출 실패'}${data.detail ? ` (${data.detail})` : ''}`);
-        }
-
-        const rawItems = Array.isArray(data) ? data : [];
         items = rawItems.filter((it: any) => 
           it.CTPRVN_NM === ctprvnNm || it.ctprvnNm === ctprvnNm || 
           it.RDNMADR?.startsWith(ctprvnNm) || it.rdnmadr?.startsWith(ctprvnNm)

@@ -10,7 +10,7 @@ const DEFAULT_KEY = '5D5834I0Q3N1GT96'; // 사용자가 제공한 기본키
 export async function handleTsunamiShelter(url: URL, apiKey?: string): Promise<{ data: unknown; cacheTtl: number }> {
   const serviceKey = apiKey || DEFAULT_KEY;
   const ctprvnNm = url.searchParams.get('ctprvnNm') || '';
-  const numOfRows = url.searchParams.get('numOfRows') || '1000'; // 대피소는 데이터가 많으므로 크게 잡음
+  const numOfRows = url.searchParams.get('numOfRows') || '200'; // 1000개 요청 시 정부 서버 지연이 심해 200개로 축소
   const pageNo = url.searchParams.get('pageNo') || '1';
 
   const qs = new URLSearchParams({

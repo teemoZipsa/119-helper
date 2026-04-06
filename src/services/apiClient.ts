@@ -18,7 +18,7 @@ function humanizeApiError(status: number, body: string): string {
   return `API 오류 (${status}): ${body}`;
 }
 
-export async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
+export async function apiFetch<T>(path: string, params?: Record<string, string>, timeoutMs = API_TIMEOUT_MS): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -27,7 +27,7 @@ export async function apiFetch<T>(path: string, params?: Record<string, string>)
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
@@ -135,8 +135,12 @@ export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRo
   return apiFetch<any[]>('/api/shelter', { ctprvnNm, signguNm: signguNm || '', numOfRows, pageNo });
 }
 
-export async function fetchTsunamiShelters(ctprvnNm: string, numOfRows = '1000', pageNo = '1') {
-  return apiFetch<any[]>('/api/tsunami-shelter', { ctprvnNm, numOfRows, pageNo });
+export async function fetchTsunamiShelters() {
+  // 공공데이터 서버가 Cloudflare 등 해외망 접근을 SSL 레벨(525)에서 차단하므로
+  // 미리 추출해둔 정적 JSON 데이터를 활용 (변경이 거의 없는 데이터적 특성 고려)
+  const res = await fetch('/data/tsunami.json');
+  if (!res.ok) throw new Error('지진해일 대피소 데이터를 불러오지 못했습니다.');
+  return res.json();
 }
 
 // ═══════ 민방위대피시설 ═══════
@@ -229,22 +233,5 @@ export interface AnnualFireStatsResponse {
 
 export async function fetchAnnualFireStats(year: string): Promise<AnnualFireStatsResponse> {
   // 대량 데이터 집계이므로 30초 타임아웃
-  const url = new URL(`${API_BASE}/api/fire-annual/${year}`);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-  try {
-    const res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(humanizeApiError(res.status, body));
-    }
-    return res.json();
-  } catch (err: any) {
-    clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      throw new Error('연간화재통계 데이터 집계 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
-    }
-    throw err;
-  }
+  return apiFetch<AnnualFireStatsResponse>(`/api/fire-annual/${year}`, undefined, 30_000);
 }
