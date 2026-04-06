@@ -21,6 +21,7 @@ import { handleAnnualFireStats } from './routes/annualFireStats';
 import { handleFireObject } from './routes/fireObject';
 import { handleFireDamage } from './routes/fireDamage';
 import { handleCivilShelter } from './routes/civilShelter';
+import { newsHandler } from './routes/news';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -183,6 +184,11 @@ export default {
         response.headers.set('Cache-Control', 'public, max-age=86400');
         await cache.put(cacheKey, response.clone());
         return response;
+      }
+
+      // ═══════ 뉴스/소식 (Google News RSS 프록시) ═══════
+      if (path === '/api/news') {
+        return await newsHandler(request, env);
       }
 
       // 404

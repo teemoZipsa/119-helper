@@ -4,6 +4,7 @@ import { getERRealTimeBeds, CITY_TO_SIDO, type ERRealTimeData } from '../service
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather } from '../services/weatherApi';
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
+import WeatherAlertBanner from './WeatherAlertBanner';
 
 type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'emergency' | 'fire-analysis' | 'annual-fire' | 'statistics';
 
@@ -84,23 +85,8 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
 
   return (
     <div className="space-y-6">
-      {/* Weather Alert Banner — 습도 30% 이하 or 풍속 10m/s 이상 시 자동 경고 */}
-      {weather && (weather.humidity <= 30 || weather.windSpeed >= 10) && (
-        <div className="bg-gradient-to-r from-red-900/40 to-orange-900/30 border border-red-500/30 rounded-xl p-4 flex items-center gap-4">
-          <span className="material-symbols-outlined text-red-400 text-3xl">warning</span>
-          <div className="flex-1">
-            <p className="text-red-300 font-bold text-sm">⚠️ 현장 활동 주의</p>
-            <p className="text-red-200/80 text-xs mt-0.5">
-              {weather.humidity <= 30 ? `건조 주의 — 습도 ${weather.humidity}% ` : ''}
-              {weather.windSpeed >= 10 ? `강풍 주의 — 풍속 ${weather.windSpeed}m/s` : ''}
-              ({cityLabel} 기준, {weather.lastUpdate} 갱신)
-            </p>
-          </div>
-          <button onClick={() => onNavigate('weather')} className="text-xs bg-red-500/20 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/30 transition-colors">
-            상세보기
-          </button>
-        </div>
-      )}
+      {/* 실시간 기상청 특보 배너 */}
+      <WeatherAlertBanner />
 
       {/* Large Weather + ER Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">

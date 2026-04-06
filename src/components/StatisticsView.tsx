@@ -4,8 +4,9 @@ import FireAnalysis from './FireAnalysis';
 import EmergencyAnalysis from './EmergencyAnalysis';
 import HazmatView from './HazmatView';
 import FireDamageView from './FireDamageView';
+import MultiUseView from './MultiUseView';
 
-type SubTab = 'annual' | 'fire' | 'fire-damage' | 'emergency' | 'hazmat';
+type SubTab = 'annual' | 'fire' | 'fire-damage' | 'emergency' | 'hazmat' | 'multiuse';
 
 const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
   { id: 'annual', label: '연간 화재통계', icon: 'bar_chart' },
@@ -13,9 +14,10 @@ const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
   { id: 'fire-damage', label: '지역별 화재피해', icon: 'map' },
   { id: 'emergency', label: '구급 출동 분석', icon: 'ambulance' },
   { id: 'hazmat', label: '위험물시설', icon: 'warning' },
+  { id: 'multiuse', label: '다중이용업소', icon: 'store' },
 ];
 
-export default function StatisticsView() {
+export default function StatisticsView({ city }: { city: string }) {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('annual');
 
   return (
@@ -54,6 +56,7 @@ export default function StatisticsView() {
       {activeSubTab === 'fire-damage' && <FireDamageView />}
       {activeSubTab === 'emergency' && <EmergencyAnalysis />}
       {activeSubTab === 'hazmat' && <HazmatView />}
+      {activeSubTab === 'multiuse' && <MultiUseView city={city} />}
     </div>
   );
 }
