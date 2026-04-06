@@ -1,38 +1,71 @@
 /**
- * 민방위대피시설 조회 API 프록시
- * Route: GET /api/civil-shelter?ctprvnNm=서울특별시&pageNo=1&numOfRows=100
+ * 재난안전데이터포털 - 민방위대피소 API (DSSP-IF-10166) 프록시
  * 
- * Endpoint: https://apis.data.go.kr/1741000/civil_defense_shelter_info/info
+ * GET /api/civil-shelter
  */
 
-export async function handleCivilShelter(url: URL, apiKey: string): Promise<{ data: unknown; cacheTtl: number }> {
-  const ctprvnNm = url.searchParams.get('ctprvnNm') || '';
-  const sgnNm = url.searchParams.get('sgnNm') || '';
-  const pageNo = url.searchParams.get('pageNo') || '1';
-  const numOfRows = url.searchParams.get('numOfRows') || '100';
+// 테스트로 발급받은 API 키 (safetydata.go.kr 용 16자리 키)
+const DEFAULT_KEY = '9029KGM7B3OJ838R';
 
-  const params = new URLSearchParams({
-    serviceKey: apiKey,
+export async function handleCivilShelter(url: URL, apiKey?: string): Promise<{ data: unknown; cacheTtl: number }> {
+  // 환경변수 apiKey는 apis.data.go.kr (100+자)용이 들어올 수 있으므로, 방어 로직 추가
+  const serviceKey = (apiKey && apiKey.length < 30) ? apiKey : DEFAULT_KEY;
+  const pageNo = url.searchParams.get('pageNo') || '1';
+  
+  // DSSP-IF-10166는 지역 필터링(ctprvnNm)이 작동하지 않으므로, 한번에 많은 데이터를 가져갑니다.
+  // 단, Cloudflare Worker Timeout (10초) 및 메모리 한계를 고려하여 너무 크지 않게 설정합니다.
+  const numOfRows = url.searchParams.get('numOfRows') || '2000';
+
+  const qs = new URLSearchParams({
+    serviceKey,
     pageNo,
     numOfRows,
-    type: 'json',
+    returnType: 'JSON'
   });
-  if (ctprvnNm) params.set('ctprvnNm', ctprvnNm);
-  if (sgnNm) params.set('sgnNm', sgnNm);
 
-  const res = await fetch(
-    `https://apis.data.go.kr/1741000/civil_defense_shelter_info/info?${params}`,
-    { headers: { 'User-Agent': '119-helper-worker/1.0' } }
-  );
-  if (!res.ok) throw new Error(`Civil Shelter API ${res.status}`);
-  const json: any = await res.json();
-  
-  // 응답 구조: { response: { body: { items: [...], totalCount: N } } } 또는 직접 배열
-  const items = json?.response?.body?.items
-    || json?.body?.items
-    || json?.data
-    || json?.items
-    || (Array.isArray(json) ? json : []);
+  const apiUrl = `https://www.safetydata.go.kr/V2/api/DSSP-IF-10166?${qs}`;
 
-  return { data: items, cacheTtl: 86400 }; // 24시간 캐시
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'No response body');
+      return { 
+        data: { error: `API_HTTP_${res.status}`, message: res.statusText, detail: errorText.slice(0, 100) }, 
+        cacheTtl: 0 
+      };
+    }
+
+    const data: any = await res.json();
+
+    if (data?.header?.resultCode && data?.header?.resultCode !== '00') {
+      return { 
+        data: { error: `API_RESULT_${data?.header?.resultCode}`, message: data?.header?.resultMsg || data?.header?.errorMsg || 'Unknown API Error' }, 
+        cacheTtl: 0 
+      };
+    }
+
+    // data 구조 대응 (안전보건공단/공공데이터 등 구조 다양함)
+    const items = data?.body?.[0]?.item 
+      || data?.body?.item 
+      || data?.body 
+      || data?.items 
+      || [];
+
+    const itemsArray = Array.isArray(items) ? items : [items];
+    
+    return { data: itemsArray, cacheTtl: 86400 };
+
+  } catch (err: any) {
+    return { 
+      data: { error: 'WORKER_FETCH_ERROR', message: err.message }, 
+      cacheTtl: 0 
+    };
+  }
 }

@@ -39,7 +39,13 @@ export async function apiFetch<T>(path: string, params?: Record<string, string>,
       throw new Error(humanizeApiError(res.status, body));
     }
 
-    return res.json();
+    const data = await res.json();
+
+    if (data && typeof data === 'object' && 'error' in data) {
+      throw new Error(data.message || `에러 발생: ${data.error}`);
+    }
+
+    return data;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       throw new Error('API 응답 시간 초과 (15초). 공공데이터 서버가 응답하지 않습니다.');

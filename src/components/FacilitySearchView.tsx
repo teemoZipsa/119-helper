@@ -4,6 +4,10 @@ import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
 import FacilityList from './FacilityList';
 import { loadKakaoMapSDK } from '../utils/kakaoLoader';
+import proj4 from 'proj4';
+
+// EPSG:5179 (GRS80 UTM-K) 정의 — 공공데이터포털(재난안전데이터) 최신 좌표계
+proj4.defs("EPSG:5179", "+proj=tmerc +lat_0=38 +lon_0=127.5 +k=0.9996 +x_0=1000000 +y_0=2000000 +ellps=GRS80 +units=m +no_defs");
 
 interface FacilitySearchProps {
   city: string;
@@ -138,20 +142,49 @@ export default function FacilitySearchView({
             addr3.startsWith(ctprvnNm) ||
             addr4.startsWith(ctprvnNm);
         });
+      } else if (activeCategory === 'civil') {
+        // 민방위 대피시설 필터링 로직 수정
+        // DSSP-IF-10166는 지역 필터링이 조금 불안정하므로 추가 필터링 수행
+        const rawItems = await fetchCivilShelters(ctprvnNm);
+        items = rawItems.filter((it: any) => {
+          const addr1 = it.LCTN_WHOL_ADDR || ''; // DSSP-IF-10166
+          const addr2 = it.RDNMADR || '';
+          const addr3 = it.rdnmadr || '';
+          const ctprvn = it.CTPRVN_NM || it.ctprvnNm || '';
+          return ctprvn === ctprvnNm ||
+            addr1.startsWith(ctprvnNm) ||
+            addr2.startsWith(ctprvnNm) ||
+            addr3.startsWith(ctprvnNm);
+        });
+
+        if (items.length === 0) {
+          throw new Error('선택된 지역의 대피시설 데이터가 현재 로드된 페이지 내에 존재하지 않습니다.');
+        }
       }
 
       if (items.length > 0) {
         const parsed: FacilityItem[] = items
           .map((it: any) => {
-            const lat = parseFloat(it.lat || it.LA || it.LAT || it.ycord || it.YCRD || it.latitude || '0');
-            const lng = parseFloat(it.lot || it.LO || it.LOT || it.xcord || it.XCRD || it.longitude || it.LON || it.lon || '0');
+            let lat = parseFloat(it.lat || it.LA || it.LAT || it.ycord || it.YCRD || it.latitude || '0');
+            let lng = parseFloat(it.lot || it.LO || it.LOT || it.xcord || it.XCRD || it.longitude || it.LON || it.lon || '0');
+            
+            // EPSG:5179 좌표계 변환 (DSSP-IF-10166 대응)
+            const epsgX = parseFloat(it.CRD_INFO_X_EPSG5179 || '0');
+            const epsgY = parseFloat(it.CRD_INFO_Y_EPSG5179 || '0');
+            
+            if ((!lat || !lng) && epsgX && epsgY) {
+              const wgs = proj4("EPSG:5179", "EPSG:4326", [epsgX, epsgY]);
+              lng = wgs[0];
+              lat = wgs[1];
+            }
+            
             if (!lat || !lng) return null;
 
             return {
-              name: it.fcltNm || it.SHNT_PLACE_NM || it.FCLT_NM || it.shltNm || it.SHLT_NM || it.fclt_nm || it.shelter_nm || '무명 시설',
-              address: it.rdnmadr || it.SHNT_PLACE_DTL_POSITION || it.RN_DTL_ADRES || it.RDNMADR || it.lnmadr || it.LNMADR || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
-              type: it.fcltSeNm || it.FCLT_SE_NM || it.shltSeNm || it.fclt_se_nm || it.shelter_type || '대피시설',
-              capacity: parseInt(it.shltCo || it.PSBL_NMPR || it.atchPrsnCo || it.acmPrsnCo || it.ACMP_PRSN_CO || it.acmp_prsn_co || '0') || 0,
+              name: it.FCLT_NM || it.fcltNm || it.SHNT_PLACE_NM || it.shltNm || it.SHLT_NM || it.fclt_nm || it.shelter_nm || '무명 시설',
+              address: it.LCTN_WHOL_ADDR || it.rdnmadr || it.SHNT_PLACE_DTL_POSITION || it.RN_DTL_ADRES || it.RDNMADR || it.lnmadr || it.LNMADR || it.dtlAdres || it.ronAdres || it.adres || '주소 미상',
+              type: it.FCLT_SE || it.fcltSeNm || it.FCLT_SE_NM || it.shltSeNm || it.fclt_se_nm || it.shelter_type || '대피시설',
+              capacity: parseInt(it.MAX_ACTC_PERNE || it.shltCo || it.PSBL_NMPR || it.atchPrsnCo || it.acmPrsnCo || it.ACMP_PRSN_CO || it.acmp_prsn_co || '0') || 0,
               lat,
               lng,
               category: activeCategory,
