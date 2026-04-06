@@ -7,6 +7,7 @@ import type { CityIndex } from '../services/fireWaterApi';
 import WeatherAlertBanner from './WeatherAlertBanner';
 import StickyNotes from './StickyNotes';
 import { WildfireTicker } from './WildfireTicker';
+import { WindCompass } from './WindCompass';
 
 type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'unit-converter' | 'news' | 'policy' | 'wildfire';
 
@@ -259,8 +260,19 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           </div>
         </div>
 
+        {/* Wind Compass */}
+        <div className="lg:col-span-12 w-full mt-2 lg:-mt-2">
+          {weather && (
+            <WindCompass 
+              windSpeed={weather.windSpeed} 
+              windDirectionDegree={weather.windDirectionDegree || 0} 
+              windDirectionText={weather.windDirection} 
+            />
+          )}
+        </div>
+
         {/* ER Summary */}
-        <div className="lg:col-span-5 flex flex-col gap-4 md:gap-6">
+        <div className="lg:col-span-5 flex flex-col gap-4 md:gap-6 mt-4 lg:mt-0">
           <div className="flex-1 bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6 cursor-pointer hover:border-primary/30 transition-colors" onClick={() => onNavigate('er')}>
             <div className="flex items-start justify-between">
               <div>

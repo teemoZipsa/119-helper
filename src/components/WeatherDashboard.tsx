@@ -9,7 +9,7 @@ import { getRealtimeAirQuality, type AirQualityData } from '../services/airQuali
 
 // Fallback data when API fails
 const FALLBACK_WEATHER: CurrentWeather = {
-  temperature: 0, humidity: 0, windSpeed: 0, windDirection: '–',
+  temperature: 0, humidity: 0, windSpeed: 0, windDirection: '–', windDirectionDegree: 0,
   sky: '로딩 중...', skyIcon: '⏳', precipitation: '–',
   precipType: '–', precipIcon: '', lastUpdate: '–',
 };

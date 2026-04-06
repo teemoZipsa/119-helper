@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { fetchWildfires, type WildfireItem } from '../services/wildfireApi';
+import { latLngToGrid, getUltraShortNow, parseCurrentWeather, type CurrentWeather } from '../services/weatherApi';
 
 export const WildfireView: React.FC = () => {
   const [fires, setFires] = useState<WildfireItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [windInfo, setWindInfo] = useState<Record<string, CurrentWeather>>({});
 
   const loadData = async () => {
     setIsLoading(true);
@@ -12,6 +14,21 @@ export const WildfireView: React.FC = () => {
     setFires(data);
     setLastUpdated(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setIsLoading(false);
+
+    // 진화중인 산불에 대해 실시간 바람 데이터 로드
+    const ongoingFires = data.filter(f => f.isOngoing && f.lat && f.lng);
+    ongoingFires.forEach(async (f) => {
+      try {
+        const grid = latLngToGrid(f.lat!, f.lng!);
+        const items = await getUltraShortNow(grid.nx, grid.ny);
+        if (items.length > 0) {
+          const weather = parseCurrentWeather(items);
+          setWindInfo(prev => ({ ...prev, [f.id]: weather }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch wind for fire', f.id, err);
+      }
+    });
   };
 
   useEffect(() => {
@@ -24,6 +41,17 @@ export const WildfireView: React.FC = () => {
   const extinguished = fires.filter(f => !f.isOngoing);
   
   const totalDamage = fires.reduce((acc, curr) => acc + (curr.damageArea || 0), 0);
+
+  // 확산 방향 예측 도우미 (반대 방향)
+  const getSpreadDirection = (windDirText: string) => {
+    const oppMap: Record<string, string> = {
+      '북': '남', '북북동': '남남서', '북동': '남서', '동북동': '서남서',
+      '동': '서', '동남동': '서북서', '남동': '북서', '남남동': '북북서',
+      '남': '북', '남남서': '북북동', '남서': '북동', '서남서': '동북동',
+      '서': '동', '서북서': '동남동', '북서': '남동', '북북서': '남남동',
+    };
+    return oppMap[windDirText] || '알 수 없음';
+  };
 
   return (
     <div className="p-4 safe-area-bottom pb-20 max-w-7xl mx-auto animate-fade-in">
@@ -96,6 +124,23 @@ export const WildfireView: React.FC = () => {
                     <span className="flex items-center"><span className="material-symbols-outlined text-base mr-1">landscape</span> 피해: {fire.damageArea}ha</span>
                   )}
                 </div>
+                {/* 실시간 바람 (진화 중일 때만 표시) */}
+                {fire.isOngoing && windInfo[fire.id] && (
+                  <div className="mt-3 inline-flex flex-col bg-surface-variant p-2.5 rounded-lg border border-error/20">
+                    <div className="flex items-center text-xs font-bold text-on-background mb-1 drop-shadow-sm">
+                      <span className="material-symbols-outlined text-sm mr-1">air</span> 
+                      현장 실시간 바람 분석
+                    </div>
+                    <div className="text-sm">
+                      현재 <span className="font-extrabold text-blue-400">{windInfo[fire.id].windDirection}풍 {windInfo[fire.id].windSpeed}m/s</span>
+                      {windInfo[fire.id].windSpeed >= 5 ? ' (강풍주의)' : ''}
+                    </div>
+                    <div className="text-sm mt-0.5 flex items-center">
+                      <span className="material-symbols-outlined text-sm text-error mr-1 animate-pulse">local_fire_department</span>
+                      AI 예측: 불길이 <span className="font-bold text-error mx-1 underline underline-offset-2">{getSpreadDirection(windInfo[fire.id].windDirection)}쪽</span>으로 확산 위험
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <button 

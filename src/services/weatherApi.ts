@@ -61,9 +61,16 @@ export interface ForecastItem {
 }
 
 export interface CurrentWeather {
-  temperature: number; humidity: number; windSpeed: number;
-  windDirection: string; sky: string; skyIcon: string;
-  precipitation: string; precipType: string; precipIcon: string;
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  windDirection: string;
+  windDirectionDegree: number; // For compass rotation
+  sky: string;
+  skyIcon: string;
+  precipitation: string;
+  precipType: string;
+  precipIcon: string;
   lastUpdate: string;
 }
 
@@ -147,6 +154,7 @@ export function parseCurrentWeather(items: ForecastItem[]): CurrentWeather {
     humidity: parseInt(get('REH')) || 0,
     windSpeed: parseFloat(get('WSD')) || 0,
     windDirection: windDirectionText(wd),
+    windDirectionDegree: wd,
     sky: SKY_MAP[sky] || '–',
     skyIcon: PTY_ICON[pty] || SKY_ICON[sky] || '☀️',
     precipitation: get('RN1') || get('PCP') || '0',
