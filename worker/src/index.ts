@@ -204,7 +204,7 @@ export default {
         const response = await newsHandler(request, env);
         if (response.status === 200) {
           const cacheableResponse = response.clone();
-          cacheableResponse.headers.set('Cache-Control', 'public, max-age=1800'); // 30분 캐시
+          cacheableResponse.headers.set('Cache-Control', 'public, max-age=3600'); // 1시간 캐시
           await cache.put(cacheKey, cacheableResponse);
         }
         
