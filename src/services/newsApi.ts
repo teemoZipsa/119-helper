@@ -20,40 +20,54 @@ const localNewsCache: Record<string, CacheEntry> = {};
 let policyNewsCache: CacheEntry | null = null;
 const alertCache: Record<string, { data: NewsItem | null; timestamp: number }> = {};
 
-async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boolean, limit: number): Promise<any[]> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return [];
-    const xmlText = await response.text();
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
-    const items = Array.from(xmlDoc.querySelectorAll('item')).slice(0, limit);
-    
-    return items.map(item => {
-      let desc = item.querySelector('description')?.textContent || '';
-      desc = desc.replace(/<[^>]+>/g, '').trim();
-      
-      let pubDateStr = item.querySelector('pubDate')?.textContent || item.querySelector('dc\\:date')?.textContent || item.querySelector('date')?.textContent || '';
-      
-      let actualSource = sourceName;
-      if (!isOfficial) {
-        actualSource = item.querySelector('source')?.textContent || sourceName;
+async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boolean, limit: number, retries = 2): Promise<any[]> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise(r => setTimeout(r, 1000 * attempt)); // 1s, 2s 대기
       }
+      const response = await fetch(url);
+      if (!response.ok) {
+        if (attempt < retries) continue;
+        return [];
+      }
+      const xmlText = await response.text();
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
+      const items = Array.from(xmlDoc.querySelectorAll('item')).slice(0, limit);
+      
+      // 빈 응답이면 재시도
+      if (items.length === 0 && attempt < retries) continue;
 
-      return {
-        id: item.querySelector('link')?.textContent || Math.random().toString(),
-        title: item.querySelector('title')?.textContent || '',
-        link: item.querySelector('link')?.textContent || '',
-        pubDateStr,
-        source: actualSource,
-        description: desc,
-        isOfficial
-      };
-    });
-  } catch (err) {
-    console.error(`RSS fetch error for ${url}:`, err);
-    return [];
+      return items.map(item => {
+        let desc = item.querySelector('description')?.textContent || '';
+        desc = desc.replace(/<[^>]+>/g, '').trim();
+        
+        let pubDateStr = item.querySelector('pubDate')?.textContent || item.querySelector('dc\\:date')?.textContent || item.querySelector('date')?.textContent || '';
+        
+        let actualSource = sourceName;
+        if (!isOfficial) {
+          actualSource = item.querySelector('source')?.textContent || sourceName;
+        }
+
+        return {
+          id: item.querySelector('link')?.textContent || Math.random().toString(),
+          title: item.querySelector('title')?.textContent || '',
+          link: item.querySelector('link')?.textContent || '',
+          pubDateStr,
+          source: actualSource,
+          description: desc,
+          isOfficial
+        };
+      });
+    } catch (err) {
+      if (attempt === retries) {
+        console.error(`RSS fetch error for ${url} (after ${retries + 1} attempts):`, err);
+        return [];
+      }
+    }
   }
+  return [];
 }
 
 function processAndSort(arrays: any[][]): NewsItem[] {
