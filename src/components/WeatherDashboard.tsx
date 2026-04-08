@@ -150,6 +150,69 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
     return 'text-blue-300/60';
   };
 
+  const formatBriefing = (text: string) => {
+    if (!text) return <p className="text-sm text-on-surface">기상개황 데이터를 불러오는 중...</p>;
+
+    return text.split('\n').map((line, idx) => {
+      let trimmed = line.trim();
+      if (!trimmed) return null;
+
+      let badge = null;
+      if (trimmed.startsWith('(종합)')) {
+        badge = <span className="inline-block bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded mr-2 mb-1 flex-shrink-0">종합</span>;
+        trimmed = trimmed.replace('(종합)', '').trim();
+      } else if (trimmed.includes('(오늘)')) {
+        badge = <span className="inline-block bg-blue-500/20 text-blue-400 text-xs font-bold px-2 py-0.5 rounded mr-2 mb-1 flex-shrink-0">오늘</span>;
+        trimmed = trimmed.replace('○ (오늘)', '').replace('(오늘)', '').trim();
+      } else if (trimmed.includes('(내일)')) {
+        badge = <span className="inline-block bg-indigo-500/20 text-indigo-400 text-xs font-bold px-2 py-0.5 rounded mr-2 mb-1 flex-shrink-0">내일</span>;
+        trimmed = trimmed.replace('○ (내일)', '').replace('(내일)', '').trim();
+      } else if (trimmed.includes('(모레)')) {
+        badge = <span className="inline-block bg-purple-500/20 text-purple-400 text-xs font-bold px-2 py-0.5 rounded mr-2 mb-1 flex-shrink-0">모레</span>;
+        trimmed = trimmed.replace('○ (모레)', '').replace('(모레)', '').trim();
+      } else if (trimmed.includes('(글피)')) {
+        badge = <span className="inline-block bg-pink-500/20 text-pink-400 text-xs font-bold px-2 py-0.5 rounded mr-2 mb-1 flex-shrink-0">글피</span>;
+        trimmed = trimmed.replace('○ (글피)', '').replace('(글피)', '').trim();
+      }
+
+      if (badge) {
+        return (
+          <div key={idx} className={`flex items-start mt-4 border-b border-outline-variant/10 pb-2 ${idx === 0 ? 'mt-0' : ''}`}>
+            {badge}
+            <span className="font-bold text-on-surface leading-relaxed flex-1 text-sm">{trimmed}</span>
+          </div>
+        );
+      }
+
+      // Check for bullet points
+      if (trimmed.startsWith('○') || trimmed.startsWith('-')) {
+        trimmed = trimmed.replace(/^[○-]\s*/, '').trim();
+        return (
+          <div key={idx} className="flex items-start mt-2 px-2">
+            <span className="text-primary mr-2 mt-0.5 font-bold flex-shrink-0">•</span>
+            <span className="text-on-surface leading-relaxed text-sm flex-1">{trimmed}</span>
+          </div>
+        );
+      }
+
+      if (trimmed.startsWith('*')) {
+        return (
+           <div key={idx} className="text-xs text-on-surface-variant flex items-start mt-2 bg-surface-container-high p-3 rounded-lg border border-outline-variant/10">
+             <span className="mr-1.5 text-primary flex-shrink-0">*</span>
+             <span className="leading-relaxed flex-1">{trimmed.substring(1).trim()}</span>
+           </div>
+        );
+      }
+
+      // Default text
+      return (
+        <p key={idx} className="text-sm text-on-surface leading-relaxed mt-2 px-2">
+          {trimmed}
+        </p>
+      );
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -348,15 +411,18 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
           <h3 className="text-lg font-bold text-on-surface font-headline mb-4">📅 주간 예보 (중기예보)</h3>
           {midLand && midTemp ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {[3, 4, 5, 6, 7].map(day => {
+              {[3, 4, 5, 6, 7, 8, 9, 10]
+                .filter(day => (midTemp as any)[`taMin${day}`] !== undefined)
+                .slice(0, 5)
+                .map(day => {
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + day);
                 const dayName = ['일', '월', '화', '수', '목', '금', '토'][futureDate.getDay()];
-                const amWf = (midLand as any)[`wf${day}Am`] || '–';
-                const pmWf = (midLand as any)[`wf${day}Pm`] || '–';
+                const amWf = day >= 8 ? ((midLand as any)[`wf${day}`] || '–') : ((midLand as any)[`wf${day}Am`] || '–');
+                const pmWf = day >= 8 ? '종일' : ((midLand as any)[`wf${day}Pm`] || '–');
                 const tMin = (midTemp as any)[`taMin${day}`] ?? '–';
                 const tMax = (midTemp as any)[`taMax${day}`] ?? '–';
-                const rain = (midLand as any)[`rnSt${day}Pm`] ?? 0;
+                const rain = day >= 8 ? ((midLand as any)[`rnSt${day}`] ?? 0) : ((midLand as any)[`rnSt${day}Pm`] ?? 0);
 
                 return (
                   <div key={day} className="bg-surface-container rounded-xl p-4 text-center">
@@ -384,9 +450,9 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
         <div className="lg:col-span-5 bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
           <h3 className="text-lg font-bold text-on-surface font-headline mb-4">📋 기상 브리핑</h3>
           <div className="bg-surface-container rounded-lg p-4">
-            <p className="text-sm text-on-surface leading-relaxed whitespace-pre-line">
-              {briefing || '기상개황 데이터를 불러오는 중...'}
-            </p>
+            <div className="text-sm text-on-surface">
+              {formatBriefing(briefing)}
+            </div>
           </div>
           <p className="text-[10px] text-on-surface-variant mt-3 italic">기상청 기상개황 조회 API 제공</p>
         </div>

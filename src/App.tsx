@@ -112,6 +112,8 @@ export default function App() {
   const regionRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const notiRef = useRef<HTMLDivElement>(null);
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // ─── 테마 시스템 ───
   const [theme, setTheme] = useState<string>(() => {
@@ -380,6 +382,18 @@ export default function App() {
     }
     setActiveSubId(subId);
     setSidebarOpen(false);
+    // 탭 이동 시 맨 위로 스크롤
+    setTimeout(() => scrollToTop(false), 50);
+  };
+
+  const handleScroll = () => {
+    if (mainScrollRef.current) {
+      setShowScrollTop(mainScrollRef.current.scrollTop > 300);
+    }
+  };
+
+  const scrollToTop = (smooth = true) => {
+    mainScrollRef.current?.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' });
   };
 
   const renderContent = () => {
@@ -633,7 +647,11 @@ export default function App() {
         </header>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+        <div 
+          className="flex-1 overflow-y-auto custom-scrollbar relative"
+          ref={mainScrollRef}
+          onScroll={handleScroll}
+        >
           <div className="p-4 md:p-6 lg:pb-6 min-h-full flex flex-col">
             <div className="flex-1">
               {renderContent()}
@@ -643,6 +661,17 @@ export default function App() {
             <div className="safe-area-bottom w-full shrink-0" />
           </div>
         </div>
+
+        {/* Scroll To Top FAB */}
+        <button
+          onClick={() => scrollToTop()}
+          className={`fixed right-4 bottom-24 lg:right-8 lg:bottom-10 z-[100] p-3.5 rounded-full bg-primary text-on-primary shadow-[0_8px_30px_rgb(0,0,0,0.3)] hover:bg-primary/90 transition-all duration-300 transform flex items-center justify-center ${
+            showScrollTop ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'
+          }`}
+          aria-label="맨 위로 가기"
+        >
+          <span className="material-symbols-outlined text-2xl font-bold">arrow_upward</span>
+        </button>
 
         {/* Mobile Bottom Navigation */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-container-lowest/95 backdrop-blur-lg border-t border-outline-variant/20 safe-area-bottom">
