@@ -58,14 +58,35 @@ async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boo
                          item.getElementsByTagName('dc:date')[0]?.textContent || 
                          item.getElementsByTagName('date')[0]?.textContent || '';
         
+        let feedSource = item.getElementsByTagName('source')[0]?.textContent || '';
         let actualSource = sourceName;
         if (!isOfficial) {
-          actualSource = item.getElementsByTagName('source')[0]?.textContent || sourceName;
+          actualSource = feedSource || sourceName;
+        }
+
+        let title = item.getElementsByTagName('title')[0]?.textContent || '';
+        const sourceToRemove = feedSource || actualSource;
+        
+        if (sourceToRemove) {
+          // 타이틀 끝에 붙은 ' - 언론사명' 제거
+          if (title.endsWith(` - ${sourceToRemove}`)) {
+            title = title.slice(0, -(sourceToRemove.length + 3));
+          } else if (title.endsWith(`-${sourceToRemove}`)) {
+            title = title.slice(0, -(sourceToRemove.length + 1));
+          } else if (title.endsWith(sourceToRemove)) {
+            title = title.slice(0, -sourceToRemove.length).trim();
+            if (title.endsWith('-')) {
+              title = title.slice(0, -1).trim();
+            }
+          }
+          
+          // 본문(description)에 등장하는 언론사 이름 일괄 제거
+          desc = desc.split(sourceToRemove).join('').trim();
         }
 
         return {
           id: item.getElementsByTagName('link')[0]?.textContent || Math.random().toString(),
-          title: item.getElementsByTagName('title')[0]?.textContent || '',
+          title,
           link: item.getElementsByTagName('link')[0]?.textContent || '',
           pubDateStr,
           source: actualSource,
