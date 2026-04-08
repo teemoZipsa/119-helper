@@ -35,6 +35,14 @@ export default function BuildingView() {
   const [errorMsg, setErrorMsg] = useState('');
   const [bldgInfo, setBldgInfo] = useState<(BuildingRegisterInfo & { searchedAddress?: string }) | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('119helper-building-recent');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // 소방시설 정보
   const [fireAccom, setFireAccom] = useState<FireObjectAccom[]>([]);
@@ -42,8 +50,10 @@ export default function BuildingView() {
   const [fireLoading, setFireLoading] = useState(false);
   const [fireError, setFireError] = useState('');
 
-  const handleSearch = () => {
-    if (!address.trim()) return;
+  const handleSearch = (searchTerm?: string | React.MouseEvent) => {
+    const targetAddress = typeof searchTerm === 'string' ? searchTerm : address;
+    if (!targetAddress.trim()) return;
+    if (typeof searchTerm === 'string') setAddress(targetAddress);
     setIsLoading(true);
     setErrorMsg('');
     setBldgInfo(null);
@@ -59,7 +69,7 @@ export default function BuildingView() {
     }
 
     const geocoder = new window.kakao.maps.services.Geocoder();
-    geocoder.addressSearch(address, async (result: any, status: any) => {
+    geocoder.addressSearch(targetAddress, async (result: any, status: any) => {
       if (status === window.kakao.maps.services.Status.OK && result[0]) {
         const item = result[0];
         const addrObj = item.address;
@@ -93,6 +103,11 @@ export default function BuildingView() {
           const apiRes = await fetchBuildingRegister(sigunguCd, bjdongCd, platGbCd, bun, ji);
           if (apiRes) {
             setBldgInfo({ ...apiRes, searchedAddress: addrObj.address_name });
+            setRecentSearches(prev => {
+              const updated = [targetAddress, ...prev.filter(item => item !== targetAddress)].slice(0, 10);
+              localStorage.setItem('119helper-building-recent', JSON.stringify(updated));
+              return updated;
+            });
           } else {
             setErrorMsg('해당 주소에 등록된 건축물대장 표제건물 정보를 찾을 수 없습니다.');
           }
@@ -168,6 +183,35 @@ export default function BuildingView() {
         <div className="max-w-2xl p-4 bg-error/10 border border-error/20 rounded-xl flex items-center gap-3">
           <span className="material-symbols-outlined text-error">error</span>
           <p className="text-sm font-bold text-error">{errorMsg}</p>
+        </div>
+      )}
+
+      {!hasSearched && recentSearches.length > 0 && (
+        <div className="max-w-2xl bg-surface-container border border-outline-variant/10 rounded-2xl p-5 md:p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4 border-b border-outline-variant/10 pb-3">
+            <h3 className="text-on-surface font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-[20px]">history</span>
+              최근 조회 기록
+            </h3>
+            <button 
+              onClick={() => { setRecentSearches([]); localStorage.removeItem('119helper-building-recent'); }}
+              className="text-xs text-on-surface-variant hover:text-error transition-colors font-medium border border-transparent hover:border-error/30 px-2 py-1 rounded-md"
+            >
+              기록 삭제
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {recentSearches.map((term, i) => (
+              <button
+                key={i}
+                onClick={() => handleSearch(term)}
+                className="bg-surface-container-lowest border border-outline-variant/20 hover:border-primary/50 px-3 py-1.5 rounded-lg text-sm text-on-surface transition-all flex items-center gap-1.5 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
+              >
+                <span className="material-symbols-outlined text-[14px] text-outline-variant group-hover:text-primary transition-colors">schedule</span>
+                {term}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -107,6 +107,8 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   
   // 섹션 접기/펴기 상태
   const [showQuickTools, setShowQuickTools] = useState(true);
+  // 개인안전장비 점검 진행률
+  const [checklistProgress, setChecklistProgress] = useState(0);
   // 빠른 도구 상태
   const [customTools, setCustomTools] = useState<string[]>(() => {
     try {
@@ -135,7 +137,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
       setWeatherLoading(false);
     }).catch(() => setWeatherLoading(false));
 
-    // 대기질
+  // 대기질
     getRealtimeAirQuality(city).then(data => {
       if (isMounted && data) setAirQuality(data);
     });
@@ -145,6 +147,18 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
     getERRealTimeBeds(sido).then(data => {
       if (isMounted && data) setErList(data);
     });
+
+    // 개인안전장비 점검 진행률 로드
+    try {
+      const saved = localStorage.getItem('119helper-equipment-checklist');
+      if (saved && isMounted) {
+        const parsed = JSON.parse(saved);
+        const checkedCount = Object.values(parsed).filter(Boolean).length;
+        const totalItemsCount = 13; // SCBA 4 + PPE 5 + 통신 4 = 13개 항목
+        setChecklistProgress(Math.round((checkedCount / totalItemsCount) * 100));
+      }
+    } catch { /* parse error fallback */ }
+
     return () => { isMounted = false; };
   }, [city]);
 
@@ -269,19 +283,39 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           
           {/* 개인안전장비 점검 미니 위젯 */}
           <div 
-            className="bg-surface-container border border-outline-variant/20 rounded-xl p-4 flex items-center justify-between cursor-pointer hover:bg-surface-container-high transition-transform hover:-translate-y-1 shadow-sm"
+            className="bg-surface-container border border-outline-variant/10 rounded-xl p-5 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] shadow-sm relative overflow-hidden group"
             onClick={() => onNavigate('checklist')}
+            style={{ minHeight: '120px' }}
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-orange-500/20 text-orange-500 dark:bg-orange-500/30 dark:text-orange-400">
-                <span className="material-symbols-outlined">fact_check</span>
+            {/* Background Image Layer */}
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{ backgroundImage: `url(/images/safety_equipment.png)` }}
+            />
+            {/* Dark overlay for text readability & mood */}
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30 transition-colors duration-1000" />
+            
+            <div className="relative z-10 flex items-center gap-4 w-full">
+              <div className="p-3 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 backdrop-blur-sm">
+                <span className="material-symbols-outlined text-3xl">fact_check</span>
               </div>
-              <div>
-                <h4 className="text-on-surface font-bold text-sm">개인안전장비 점검</h4>
-                <p className="text-on-surface-variant text-xs mt-0.5">출근 직후 필수 점검 사항</p>
+              <div className="flex-1">
+                <h4 className="text-white font-extrabold text-lg">개인안전장비 점검</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                    <div 
+                      className={`h-full transition-all duration-500 ease-out ${checklistProgress === 100 ? 'bg-green-500' : 'bg-orange-500'}`}
+                      style={{ width: `${checklistProgress}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-bold w-9 text-right ${checklistProgress === 100 ? 'text-green-400' : 'text-orange-400'}`}>
+                    {checklistProgress}%
+                  </span>
+                </div>
+                <p className="text-slate-300 text-[11px] mt-1">출근 직후 필수 점검 사항</p>
               </div>
             </div>
-            <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+            <span className="material-symbols-outlined text-white/50 relative z-10">chevron_right</span>
           </div>
 
           {/* ER Summary */}
@@ -355,14 +389,6 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               <div className="absolute right-4 bottom-4 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
                 <span className="material-symbols-outlined text-[12px]">map</span> 지도로 보기
               </div>
-            </button>
-            <button onClick={() => onNavigate('statistics' as TabId)} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-orange-500/50 hover:bg-surface-container-low transition-all group relative overflow-hidden col-span-2 shadow-sm hover:shadow-md flex items-center justify-between">
-              <div>
-                <span className="material-symbols-outlined text-orange-400 text-xl group-hover:scale-110 transition-transform mb-1 block">bar_chart</span>
-                <p className="text-lg font-extrabold text-on-surface font-headline">관내 화재 및 구급 통계 분석</p>
-                <p className="text-[10px] text-on-surface-variant mt-0.5">연간화재통계 · 다발지역분석 · 구급출동현황</p>
-              </div>
-              <span className="material-symbols-outlined text-outline-variant group-hover:text-orange-400 transition-colors">chevron_right</span>
             </button>
           </div>
         </div>

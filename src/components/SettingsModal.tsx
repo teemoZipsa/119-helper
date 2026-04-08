@@ -4,6 +4,7 @@ import {
   saveNotificationSettings,
   type NotificationSettings,
 } from '../services/notificationSettings';
+import { SHIFT_CYCLE_DANGBIBI, type ShiftSetting, type ShiftType } from '../utils/shiftCalculator';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface SettingsModalProps {
   cityNames: Record<string, string>;
 }
 
-type SettingsTab = 'general' | 'notification';
+type SettingsTab = 'general' | 'notification' | 'shift';
 
 // ── 토글 스위치 ──
 function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: (v: boolean) => void; size?: 'sm' | 'md' }) {
@@ -273,17 +274,83 @@ function NotificationTab({ ns, updateNs }: {
 }
 
 // ══════════════════════════════════════════
+// 교대근무 탭
+// ══════════════════════════════════════════
+function ShiftTab({ setting, setSetting }: { setting: ShiftSetting; setSetting: (s: ShiftSetting) => void }) {
+  return (
+    <div className="p-5 space-y-5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-lg">calendar_month</span>
+          교대근무 스케줄 연동
+        </span>
+        <Toggle on={setting.isActive} onChange={(v) => setSetting({ ...setting, isActive: v })} size="sm" />
+      </div>
+
+      <p className="text-xs text-on-surface-variant">
+        활성화 시 <code>(당직-비번-비번)</code> 기준의 복잡한 교대 일정을 달력에 자동으로 표시합니다.
+      </p>
+
+      {setting.isActive && (
+        <div className="space-y-4 pt-2 border-t border-outline-variant/10">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-on-surface block">기준 일자 (아무 날짜나 선택)</label>
+            <input 
+              type="date" 
+              value={setting.baseDate}
+              onChange={(e) => setSetting({ ...setting, baseDate: e.target.value })}
+              className="w-full bg-surface-container text-on-surface text-sm rounded-xl px-3 py-2 border border-outline-variant/20 focus:outline-[2px] focus:outline-primary/50 transition-all font-mono"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-on-surface block">해당 기준일의 내 근무 상태</label>
+            <div className="grid grid-cols-3 gap-2">
+              {SHIFT_CYCLE_DANGBIBI.map(shift => (
+                <button
+                  key={shift}
+                  onClick={() => setSetting({ ...setting, baseShift: shift as ShiftType })}
+                  className={`py-2 rounded-xl text-sm font-bold border transition-colors ${
+                    setting.baseShift === shift 
+                      ? 'bg-primary/10 border-primary text-primary' 
+                      : 'bg-surface-container border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'
+                  }`}
+                >
+                  {shift}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-on-surface-variant pt-1 text-center">선택하신 기준일에 해당하는 근무조를 눌러주세요.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
 // 메인 SettingsModal
 // ══════════════════════════════════════════
 export default function SettingsModal({ isOpen, onClose, city, onCityChange, cityNames }: SettingsModalProps) {
   const [tab, setTab] = useState<SettingsTab>('general');
   const [refreshInterval, setRefreshInterval] = useState('5');
   const [ns, setNs] = useState<NotificationSettings>(loadNotificationSettings());
+  const [shiftSetting, setShiftSetting] = useState<ShiftSetting>({
+    isActive: false,
+    baseDate: new Date().toISOString().split('T')[0],
+    baseShift: '당직',
+  });
 
   useEffect(() => {
     if (isOpen) {
       setRefreshInterval(localStorage.getItem('119helper-refresh') || '5');
       setNs(loadNotificationSettings());
+      
+      try {
+        const savedShift = localStorage.getItem('119helper-shift-setting');
+        if (savedShift) setShiftSetting(JSON.parse(savedShift));
+      } catch (e) {}
+
       setTab('general');
     }
   }, [isOpen]);
@@ -295,6 +362,7 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
     saveNotificationSettings(ns);
     localStorage.setItem('119helper-refresh', refreshInterval);
     localStorage.setItem('119helper-sound', ns.soundEnabled.toString());
+    localStorage.setItem('119helper-shift-setting', JSON.stringify(shiftSetting));
     onClose();
   };
 
@@ -302,7 +370,8 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
 
   const tabs: { id: SettingsTab; icon: string; label: string }[] = [
     { id: 'general', icon: 'tune', label: '일반' },
-    { id: 'notification', icon: 'notifications', label: '알림 설정' },
+    { id: 'shift', icon: 'calendar_month', label: '내 근무' },
+    { id: 'notification', icon: 'notifications', label: '알림' },
   ];
 
   return (
@@ -339,13 +408,17 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
 
         {/* 탭 콘텐츠 (스크롤) */}
         <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
-          {tab === 'general' ? (
+          {tab === 'general' && (
             <GeneralTab
               city={city} onCityChange={onCityChange} cityNames={cityNames}
               refreshInterval={refreshInterval} setRefreshInterval={setRefreshInterval}
               ns={ns} updateNs={updateNs}
             />
-          ) : (
+          )}
+          {tab === 'shift' && (
+            <ShiftTab setting={shiftSetting} setSetting={setShiftSetting} />
+          )}
+          {tab === 'notification' && (
             <NotificationTab ns={ns} updateNs={updateNs} />
           )}
         </div>

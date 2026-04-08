@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import OvertimeCalc from './OvertimeCalc';
 import HazmatCalc from './HazmatCalc';
 import UnitConverter from './UnitConverter';
 
@@ -245,33 +246,79 @@ function AirTankTimer() {
 }
 
 export default function Calculators({ subId }: { subId?: string }) {
+  const [activeTab, setActiveTab] = useState<'overtime' | 'field' | 'air_tank' | 'hazmat' | 'unit'>('overtime');
+
   useEffect(() => {
+    // subId mapper
     if (subId) {
-      setTimeout(() => {
-        const el = document.getElementById(subId);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          el.classList.add('ring-4', 'ring-primary/50', 'transition-all', 'duration-500');
-          setTimeout(() => el.classList.remove('ring-4', 'ring-primary/50'), 2000);
-        }
-      }, 100);
+      if (subId === 'hazmat_calc') setActiveTab('hazmat');
+      else if (subId === 'water_pressure_calc' || subId === 'hose_length_calc') setActiveTab('field');
+      else if (subId === 'air_tank_timer') setActiveTab('air_tank');
+      else if (subId === 'unit_converter') setActiveTab('unit');
     }
   }, [subId]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-full flex flex-col">
       <div>
-        <h2 className="text-2xl font-extrabold text-on-surface font-headline">🧮 소방 계산기</h2>
-        <p className="text-sm text-on-surface-variant mt-1">현장 활동에 필요한 계산 · 단위 변환 도구</p>
+        <h2 className="text-2xl font-extrabold text-on-surface font-headline">🧮 119 계산기</h2>
+        <p className="text-sm text-on-surface-variant mt-1">현장 활동 및 행정에 필요한 계산 · 변환 도구 목록</p>
       </div>
-      <div id="hazmat_calc"><HazmatCalc /></div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div id="water_pressure_calc"><WaterPressureCalc /></div>
-        <div id="hose_length_calc"><HoseLengthCalc /></div>
+
+      <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
+        {[
+          { id: 'overtime', label: '초과수당', icon: 'payments' },
+          { id: 'field', label: '현장계산', icon: 'water_drop' },
+          { id: 'air_tank', label: '공기호흡기', icon: 'timer' },
+          { id: 'hazmat', label: '유해화학', icon: 'science' },
+          { id: 'unit', label: '단위변환', icon: 'sync_alt' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold whitespace-nowrap transition-colors ${
+              activeTab === tab.id
+                ? 'bg-primary text-onPrimary shadow-md'
+                : 'bg-surface-container text-on-surface-variant hover:bg-surface-variant/80'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div id="air_tank_timer"><AirTankTimer /></div>
-        <div id="unit_converter" className="xl:col-span-1"><UnitConverter /></div>
+
+      <div className="flex-1 w-full relative">
+        {activeTab === 'overtime' && (
+          <div className="h-full animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+            <OvertimeCalc />
+          </div>
+        )}
+        
+        {activeTab === 'field' && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+            <div id="water_pressure_calc"><WaterPressureCalc /></div>
+            <div id="hose_length_calc"><HoseLengthCalc /></div>
+          </div>
+        )}
+
+        {activeTab === 'air_tank' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+            <div id="air_tank_timer"><AirTankTimer /></div>
+          </div>
+        )}
+
+        {activeTab === 'hazmat' && (
+          <div id="hazmat_calc" className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+            <HazmatCalc />
+          </div>
+        )}
+
+        {activeTab === 'unit' && (
+          <div id="unit_converter" className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+            <UnitConverter />
+          </div>
+        )}
       </div>
     </div>
   );

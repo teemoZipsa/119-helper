@@ -125,111 +125,149 @@ export default function StickyNotes({ embedMode = false }: StickyNotesProps) {
     setDragOverId(null);
   };
 
+  const [showMemo, setShowMemo] = useState(true);
+
   // 선택된 메모의 색상 인덱스
   const selectedNote = notes.find(n => n.id === selectedNoteId);
   const selectedNoteColorIdx = selectedNote
     ? COLORS.findIndex(c => c.bg === selectedNote.color)
     : -1;
 
-  return (
-    <div className={embedMode ? "space-y-4" : "space-y-6"}>
-      <div className={`flex items-center flex-wrap gap-3 ${embedMode ? 'justify-end' : 'justify-between'}`}>
-        {!embedMode && (
-          <div>
-            <h2 className="text-2xl font-extrabold text-on-surface font-headline">📝 메모장</h2>
-            <p className="text-sm text-on-surface-variant mt-1">
-              스티커 메모 — 브라우저에 자동 저장됩니다
-              {selectedNoteId && <span className="ml-2 text-primary font-bold">• 색상을 클릭하면 선택된 메모의 색이 바뀝니다</span>}
-            </p>
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1.5">
-            {COLORS.map((c, i) => {
-              const isActive = selectedNoteId ? selectedNoteColorIdx === i : selectedColor === i;
-              return (
-                <button
-                  key={c.label}
-                  onClick={() => handleColorClick(i)}
-                  title={selectedNoteId ? `메모 색상을 ${c.label}으로 변경` : `${c.label} 색 메모 만들기`}
-                  className={`w-7 h-7 rounded-full ${c.dot} border-2 transition-all duration-200 ${
-                    isActive
-                      ? 'border-white scale-125 ring-2 ring-primary/50'
-                      : 'border-transparent opacity-60 hover:opacity-100 hover:scale-110'
-                  }`}
-                />
-              );
-            })}
-          </div>
-          <button
-            onClick={addNote}
-            className="bg-primary hover:bg-primary/80 text-on-primary px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            새 메모
-          </button>
-        </div>
+  const renderControls = () => (
+    <div className="flex items-center gap-3">
+      <div className="flex gap-1.5 hidden sm:flex">
+        {COLORS.map((c, i) => {
+          const isActive = selectedNoteId ? selectedNoteColorIdx === i : selectedColor === i;
+          return (
+            <button
+              key={c.label}
+              onClick={() => handleColorClick(i)}
+              title={selectedNoteId ? `메모 색상을 ${c.label}으로 변경` : `${c.label} 색 메모 만들기`}
+              className={`w-7 h-7 rounded-full ${c.dot} border-2 transition-all duration-200 ${
+                isActive
+                  ? 'border-white scale-125 ring-2 ring-primary/50'
+                  : 'border-transparent opacity-60 hover:opacity-100 hover:scale-110'
+              }`}
+            />
+          );
+        })}
       </div>
+      <button
+        onClick={addNote}
+        className="bg-primary hover:bg-primary/80 text-on-primary px-3 py-2 md:px-4 md:py-2.5 rounded-xl text-xs md:text-sm font-bold flex items-center gap-1.5 md:gap-2 transition-colors"
+      >
+        <span className="material-symbols-outlined text-base md:text-lg">add</span>
+        새 메모
+      </button>
+    </div>
+  );
 
-      {notes.length === 0 ? (
+  const renderContent = () => {
+    if (notes.length === 0) {
+      return (
         <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant">
           <span className="material-symbols-outlined text-6xl opacity-30">sticky_note_2</span>
           <p className="mt-4 text-lg font-medium">메모가 없습니다</p>
           <p className="text-sm opacity-60">위의 "새 메모" 버튼을 눌러 메모를 추가하세요</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {notes.map(note => {
-            const colorClass = getColorClasses(note.color);
-            const isSelected = selectedNoteId === note.id;
-            const isDragOver = dragOverId === note.id && dragId !== note.id;
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {notes.map(note => {
+          const colorClass = getColorClasses(note.color);
+          const isSelected = selectedNoteId === note.id;
+          const isDragOver = dragOverId === note.id && dragId !== note.id;
 
-            return (
-              <div
-                key={note.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, note.id)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, note.id)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, note.id)}
-                onClick={() => handleNoteClick(note.id)}
-                className={`
-                  ${colorClass.bg} ${colorClass.border} border rounded-xl p-4 flex flex-col gap-3
-                  group backdrop-blur-sm transition-all duration-200 cursor-grab active:cursor-grabbing
-                  ${isSelected ? 'ring-2 ring-primary shadow-lg shadow-primary/10 scale-[1.02]' : 'hover:scale-[1.01]'}
-                  ${isDragOver ? 'ring-2 ring-primary/60 scale-105 border-dashed' : ''}
-                `}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing">drag_indicator</span>
-                    <span className="text-[10px] text-gray-600 dark:text-gray-300 font-medium">{note.createdAt}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isSelected && (
-                      <span className="text-[10px] text-primary font-bold px-1.5 py-0.5 bg-primary/10 rounded-full">선택됨</span>
-                    )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-on-surface-variant hover:text-error"
-                    >
-                      <span className="material-symbols-outlined text-lg">close</span>
-                    </button>
-                  </div>
+          return (
+            <div
+              key={note.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e, note.id)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleDragOver(e, note.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, note.id)}
+              onClick={() => handleNoteClick(note.id)}
+              className={`
+                ${colorClass.bg} ${colorClass.border} border rounded-xl p-4 flex flex-col gap-3
+                group backdrop-blur-sm transition-all duration-200 cursor-grab active:cursor-grabbing
+                ${isSelected ? 'ring-2 ring-primary shadow-lg shadow-primary/10 scale-[1.02]' : 'hover:scale-[1.01]'}
+                ${isDragOver ? 'ring-2 ring-primary/60 scale-105 border-dashed' : ''}
+              `}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing">drag_indicator</span>
+                  <span className="text-[10px] text-gray-600 dark:text-gray-300 font-medium">{note.createdAt}</span>
                 </div>
-                <textarea
-                  value={note.text}
-                  onChange={(e) => updateNote(note.id, e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="메모를 입력하세요..."
-                  className="bg-transparent border-none resize-none flex-1 min-h-[120px] text-sm font-medium text-gray-900 dark:text-gray-50 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-0"
-                />
+                <div className="flex items-center gap-1">
+                  {isSelected && (
+                    <span className="text-[10px] text-primary font-bold px-1.5 py-0.5 bg-primary/10 rounded-full">선택됨</span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-on-surface-variant hover:text-error"
+                  >
+                    <span className="material-symbols-outlined text-lg">close</span>
+                  </button>
+                </div>
               </div>
-            );
-          })}
+              <textarea
+                value={note.text}
+                onChange={(e) => updateNote(note.id, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="메모를 입력하세요..."
+                className="bg-transparent border-none resize-none flex-1 min-h-[120px] text-sm font-medium text-gray-900 dark:text-gray-50 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-0"
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  if (embedMode) {
+    return (
+      <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden shadow-sm transition-all mb-6">
+        <div className="flex items-center justify-between border-b border-outline-variant/10 p-3 md:p-4">
+          <button 
+            onClick={() => setShowMemo(!showMemo)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none"
+          >
+            <span className="material-symbols-outlined text-pink-400 text-xl">sticky_note_2</span>
+            <h3 className="text-lg font-extrabold text-on-surface font-headline hidden sm:block">메모장</h3>
+            <span className={`material-symbols-outlined text-on-surface-variant transition-transform duration-300 ${showMemo ? 'rotate-180' : ''}`}>
+              expand_more
+            </span>
+          </button>
+          
+          {showMemo && renderControls()}
         </div>
-      )}
+        
+        {showMemo && (
+          <div className="p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300 bg-surface/30">
+            {renderContent()}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center flex-wrap gap-3 justify-between">
+        <div>
+          <h2 className="text-2xl font-extrabold text-on-surface font-headline">📝 메모장</h2>
+          <p className="text-sm text-on-surface-variant mt-1">
+            스티커 메모 — 브라우저에 자동 저장됩니다
+            {selectedNoteId && <span className="ml-2 text-primary font-bold">• 색상을 클릭하면 선택된 메모의 색이 바뀝니다</span>}
+          </p>
+        </div>
+        {renderControls()}
+      </div>
+
+      {renderContent()}
     </div>
   );
 }
