@@ -27,7 +27,7 @@ interface DashboardProps {
   cityIndex?: CityIndex | null;
 }
 
-export interface QuickToolDef {
+interface QuickToolDef {
   id: string;
   tab: TabId;
   subId?: string;
@@ -37,7 +37,7 @@ export interface QuickToolDef {
   category: string;
 }
 
-export const ALL_QUICK_TOOLS: QuickToolDef[] = [
+const ALL_QUICK_TOOLS: QuickToolDef[] = [
   // 소방 계산기
   { id: 'calc_hazmat', tab: 'calculator', subId: 'hazmat_calc', icon: 'science', label: '유해물질', color: 'text-orange-400', category: '계산기' },
   { id: 'calc_water', tab: 'calculator', subId: 'water_pressure_calc', icon: 'water_drop', label: '수압 계산', color: 'text-blue-400', category: '계산기' },
@@ -70,24 +70,28 @@ const WeatherParticles = React.memo(({ type }: { type: string }) => {
   if (!isRain && !isSnow) return null;
 
   const count = isRain ? 20 : 30; // 비는 20줄기, 눈은 30송이 정도
-  const particles = Array.from({ length: count }).map((_, i) => {
-    const left = Math.random() * 100 + '%';
-    const delay = Math.random() * 2 + 's';
-    const duration = isRain ? (0.5 + Math.random() * 0.3) + 's' : (2 + Math.random() * 3) + 's';
-    const size = isSnow ? (3 + Math.random() * 4) + 'px' : undefined;
-    const opacity = 0.3 + Math.random() * 0.5;
+  const particleStyles = React.useMemo(() => {
+    return Array.from({ length: count }).map(() => ({
+      left: Math.random() * 100 + '%',
+      delay: Math.random() * 2 + 's',
+      duration: isRain ? (0.5 + Math.random() * 0.3) + 's' : (2 + Math.random() * 3) + 's',
+      size: isSnow ? (3 + Math.random() * 4) + 'px' : undefined,
+      opacity: 0.3 + Math.random() * 0.5
+    }));
+  }, [count, isRain, isSnow]);
 
+  const particles = particleStyles.map((style, i) => {
     return (
       <div 
         key={i} 
         className={isRain ? 'weather-particle-rain' : 'weather-particle-snow'} 
         style={{
-          left,
-          animationDelay: delay,
-          animationDuration: duration,
-          opacity,
-          width: size,
-          height: size
+          left: style.left,
+          animationDelay: style.delay,
+          animationDuration: style.duration,
+          opacity: style.opacity,
+          width: style.size,
+          height: style.size
         }}
       />
     );

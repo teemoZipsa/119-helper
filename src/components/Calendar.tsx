@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { getStaticHolidays } from '../data/holidays';
 import { getShiftForDate, type ShiftSetting } from '../utils/shiftCalculator';
 
@@ -42,7 +42,9 @@ export default function Calendar() {
         const saved = localStorage.getItem('119helper-shift-setting');
         if (saved) setShiftSetting(JSON.parse(saved));
         else setShiftSetting(null);
-      } catch (e) {}
+      } catch {
+        // ignore error
+      }
     };
     loadSetting();
     // Setting Modal doesn't trigger 'storage' event in the same window standardly, 
@@ -75,7 +77,7 @@ export default function Calendar() {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   // 공휴일 데이터 — 정적 데이터에서 즉시 로드 (API 불필요)
-  const holidays = useMemo(() => getStaticHolidays(year, month + 1), [year, month]);
+  const holidays = getStaticHolidays(year, month + 1);
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
