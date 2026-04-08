@@ -26,9 +26,11 @@ import NewsDashboard from './components/NewsDashboard';
 import PolicyDashboard from './components/PolicyDashboard';
 import { WildfireView } from './components/WildfireView';
 import LawDashboard from './components/LawDashboard';
+import EquipmentChecklist from './components/EquipmentChecklist';
 import { loadNotificationSettings } from './services/notificationSettings';
+import { fetchDisasterMsgs } from './services/disasterMsgApi';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'law';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'law' | 'checklist';
 type ShelterCategory = 'hydrants' | 'waterTowers' | 'civil';
 
 // 알림 시스템 타입
@@ -62,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'manual', icon: 'menu_book', label: '대응 매뉴얼' },
   { id: 'calculator', icon: 'calculate', label: '계산기' },
   { id: 'field-timer', icon: 'timer', label: '현장 타이머' },
+  { id: 'checklist', icon: 'check_circle', label: '장비점검' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
   { id: 'law', icon: 'menu_book', label: '관련 법령' },
   { id: 'policy', icon: 'gavel', label: '법안/지침' },
@@ -185,16 +188,19 @@ export default function App() {
     localStorage.setItem('119helper-city', newCity);
   };
 
-  // 알림 추가 헬퍼
-  const addNotification = useCallback((icon: string, iconColor: string, title: string, message: string) => {
+  const addNotification = useCallback((id: string | undefined, icon: string, iconColor: string, title: string, message: string) => {
     setNotifications(prev => {
+      // Deduplicate if custom ID is provided and already exists, or same title+msg exists recently
+      if (id && prev.some(n => n.id === id)) return prev;
+      if (!id && prev.some(n => n.title === title && n.message === message)) return prev;
+      
       const newNoti: Notification = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         icon, iconColor, title, message,
         timestamp: new Date(),
         isNew: true,
       };
-      const updated = [newNoti, ...prev].slice(0, 20); // 최대 20개
+      const updated = [newNoti, ...prev].slice(0, 50); // Keep max 50
       return updated;
     });
   }, []);
@@ -265,19 +271,19 @@ export default function App() {
         if (items.length > 0) {
           const w = parseCurrentWeather(items);
           if (ns.weather.rain && w.precipType !== '없음' && w.precipType !== '눈') {
-            addNotification('rainy', 'text-blue-400', `🌧️ ${cityNames[city]} 강수 감지`, `현재 ${w.precipType} 관측 중. 풍속 ${w.windSpeed}m/s (${w.windDirection})`);
+            addNotification(undefined, 'rainy', 'text-blue-400', `🌧️ ${cityNames[city]} 강수 감지`, `현재 ${w.precipType} 관측 중. 풍속 ${w.windSpeed}m/s (${w.windDirection})`);
           }
           if (ns.weather.snow && w.precipType === '눈') {
-            addNotification('weather_snowy', 'text-cyan-300', `❄️ ${cityNames[city]} 적설 감지`, `현재 눈 관측 중. 풍속 ${w.windSpeed}m/s`);
+            addNotification(undefined, 'weather_snowy', 'text-cyan-300', `❄️ ${cityNames[city]} 적설 감지`, `현재 눈 관측 중. 풍속 ${w.windSpeed}m/s`);
           }
           if (ns.weather.heatwave && w.temperature >= ns.weather.heatwaveThreshold) {
-            addNotification('thermostat', 'text-red-400', `🥵 ${cityNames[city]} 폭염 주의`, `현재 기온 ${w.temperature}°C. 현장 활동 시 열사병 주의!`);
+            addNotification(undefined, 'thermostat', 'text-red-400', `🥵 ${cityNames[city]} 폭염 주의`, `현재 기온 ${w.temperature}°C. 현장 활동 시 열사병 주의!`);
           }
           if (ns.weather.coldwave && w.temperature <= ns.weather.coldwaveThreshold) {
-            addNotification('ac_unit', 'text-cyan-400', `🥶 ${cityNames[city]} 한파 주의`, `현재 기온 ${w.temperature}°C. 소화전 동파 점검 필요.`);
+            addNotification(undefined, 'ac_unit', 'text-cyan-400', `🥶 ${cityNames[city]} 한파 주의`, `현재 기온 ${w.temperature}°C. 소화전 동파 점검 필요.`);
           }
           if (ns.weather.strongWind && parseFloat(String(w.windSpeed)) >= ns.weather.windThreshold) {
-            addNotification('air', 'text-teal-400', `💨 ${cityNames[city]} 강풍 주의`, `풍속 ${w.windSpeed}m/s (${w.windDirection}). 사다리차 운행 주의!`);
+            addNotification(undefined, 'air', 'text-teal-400', `💨 ${cityNames[city]} 강풍 주의`, `풍속 ${w.windSpeed}m/s (${w.windDirection}). 사다리차 운행 주의!`);
           }
         }
       } catch { /* silently fail */ }
@@ -289,11 +295,46 @@ export default function App() {
         const aq = await getRealtimeAirQuality(cityNames[city] || '서울');
         if (aq) {
           if (ns.airQuality.pm10Bad && parseInt(aq.pm10Grade) >= 3) {
-            addNotification('masks', 'text-yellow-400', `⚠️ ${cityNames[city]} 미세먼지 나쁨`, `PM10: ${aq.pm10Value}μg/m³. 현장 활동 시 방진마스크 착용 권장.`);
+            addNotification(undefined, 'masks', 'text-yellow-400', `⚠️ ${cityNames[city]} 미세먼지 나쁨`, `PM10: ${aq.pm10Value}μg/m³. 현장 활동 시 방진마스크 착용 권장.`);
           }
           if (ns.airQuality.pm25Bad && parseInt(aq.pm25Grade || '0') >= 3) {
-            addNotification('blur_circular', 'text-orange-400', `⚠️ ${cityNames[city]} 초미세먼지 나쁨`, `PM2.5: ${aq.pm25Value}μg/m³. 호흡기 보호구 착용 필수.`);
+            addNotification(undefined, 'blur_circular', 'text-orange-400', `⚠️ ${cityNames[city]} 초미세먼지 나쁨`, `PM2.5: ${aq.pm25Value}μg/m³. 호흡기 보호구 착용 필수.`);
           }
+        }
+      } catch { /* silently fail */ }
+    }
+
+    // 재난 문자 및 산불 알림 생성
+    if (ns.enabled && (ns.disaster.enabled || ns.wildfire.enabled)) {
+      try {
+        const msgs = await fetchDisasterMsgs();
+        if (msgs && msgs.length > 0) {
+          // 최신순으로 정렬된 데이터를 과거 데이터부터 처리하여 가장 최신이 마지막에 오도록 (상단에 위치하도록)
+          [...msgs].reverse().forEach(msg => {
+            const kname = cityNames[city];
+            if (msg.location_name.includes(kname) || msg.location_name.includes('전국')) {
+              const text = msg.msg || '';
+              
+              // 산불 로직
+              if (ns.wildfire.enabled && text.includes('산불')) {
+                if (ns.wildfire.newFire && text.includes('발생')) {
+                  addNotification(msg.md101_sn, 'whatshot', 'text-orange-500', `🔥 ${kname} 산불 발생`, text);
+                } else if (ns.wildfire.levelChange) {
+                  addNotification(msg.md101_sn, 'trending_up', 'text-red-500', `🔥 ${kname} 산불 주의/경보`, text);
+                }
+              }
+
+              // 재난 문자 로직
+              if (ns.disaster.enabled) {
+                const isEmergency = msg.msgType?.includes('긴급') || text.includes('지진') || text.includes('대피');
+                if (isEmergency && ns.disaster.emergencyAll) {
+                  addNotification(msg.md101_sn, 'emergency', 'text-red-600', `🚨 ${kname} 긴급재난문자`, text);
+                } else if (!isEmergency && ns.disaster.safetyAlert && !text.includes('산불')) {
+                  addNotification(msg.md101_sn, 'health_and_safety', 'text-amber-500', `📣 ${kname} 안전안내문자`, text);
+                }
+              }
+            }
+          });
         }
       } catch { /* silently fail */ }
     }
@@ -371,6 +412,7 @@ export default function App() {
       case 'field-timer': return <FieldTimer />;
       case 'calendar': return <Calendar />;
       case 'news': return <NewsDashboard city={city} />;
+      case 'checklist': return <EquipmentChecklist />;
       case 'law': return <LawDashboard />;
       case 'policy': return <PolicyDashboard />;
       default: return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} cityIndex={cityIndex} />;

@@ -26,7 +26,7 @@ async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boo
       if (attempt > 0) {
         await new Promise(r => setTimeout(r, 1000 * attempt)); // 1s, 2s 대기
       }
-      const response = await fetch(url);
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) {
         if (attempt < retries) continue;
         return [];

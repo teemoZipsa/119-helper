@@ -139,39 +139,52 @@ export default function FacilityList({
         </div>
       )}
 
-      {/* 데이터가 로드된 경우에만 지도 + 리스트 표시 */}
-      {(data.length > 0 || (!isSplit && !isLoading)) && (
+      {/* 항상 지도 및 검색/필터 영역 표시 (데이터 로드 전이거나 분할 도시 구 선택 전에도 지도는 표시 됨) */}
+      {!isLoading && (
         <>
-          {/* KakaoMap — 현재 페이지 마커만 표시 (성능) */}
-          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden relative">
+          {/* KakaoMap — 분할 도시의 경우 미선택 시에도 지도 자체는 표시 */}
+          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden relative mt-4">
             <KakaoMap data={paged} city={city} height="300px" selectedId={selectedId} />
-            {/* Status overlay */}
-            <div className="absolute top-4 left-4 z-10 bg-surface-container-lowest/90 backdrop-blur-sm p-3 rounded-xl border border-outline-variant/20">
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                  <span className="text-on-surface-variant">정상 {data.filter(d => d.status === '정상').length.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-                  <span className="text-on-surface-variant">점검필요 {data.filter(d => d.status === '점검필요').length}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                  <span className="text-on-surface-variant">고장 {data.filter(d => d.status === '고장').length}</span>
+            {/* Status overlay - 데이터가 있을 때만 표시 */}
+            {data.length > 0 && (
+              <div className="absolute top-4 left-4 z-10 bg-surface-container-lowest/90 backdrop-blur-sm p-3 rounded-xl border border-outline-variant/20">
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                    <span className="text-on-surface-variant">정상 {data.filter(d => d.status === '정상').length.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                    <span className="text-on-surface-variant">점검필요 {data.filter(d => d.status === '점검필요').length}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                    <span className="text-on-surface-variant">고장 {data.filter(d => d.status === '고장').length}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+            
+            {/* 분할 도시 안내 오버레이 - 지도는 보이지만 선택 유도 */}
+            {isSplit && !selectedDistrict && (
+              <div className="absolute inset-0 z-20 bg-surface/50 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
+                <div className="bg-surface-container-highest border border-outline-variant/20 rounded-xl p-4 text-center shadow-lg transform -translate-y-4">
+                  <span className="material-symbols-outlined text-3xl text-primary mb-1">ads_click</span>
+                  <p className="text-sm font-bold text-on-surface">상단에서 구/군을 선택하면 시설이 표시됩니다</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Filters */}
-          <div className="flex gap-3 flex-col sm:flex-row">
+          <div className="flex gap-3 flex-col sm:flex-row mt-4">
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="주소 또는 ID로 검색..."
-              className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              disabled={isSplit && !selectedDistrict}
+              className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
             />
             {/* 비분할 도시용 필터 (분할 도시에서는 이미 구별로 로드) */}
             {!isSplit && (
@@ -190,7 +203,7 @@ export default function FacilityList({
 
           {/* Pagination info */}
           {filtered.length > PAGE_SIZE && (
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm mt-4">
               <span className="text-on-surface-variant">
                 {((page - 1) * PAGE_SIZE + 1).toLocaleString()}~{Math.min(page * PAGE_SIZE, filtered.length).toLocaleString()} / {filtered.length.toLocaleString()}건
               </span>
@@ -230,113 +243,115 @@ export default function FacilityList({
             </div>
           )}
 
-          {/* List — 페이지네이션된 데이터만 렌더링 */}
-          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-surface-container/50">
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">유형</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">주소</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">관할구</th>
-                    <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">상태</th>
-                    <th className="px-6 py-4 text-right text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">좌표</th>
-                    <th className="px-2 py-4 text-center text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">길찾기</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/10">
-                  {paged.map(item => (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedId(prev => prev === item.id ? null : item.id)}
-                      className={`cursor-pointer transition-colors ${
-                        selectedId === item.id
-                          ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
-                          : 'hover:bg-surface-container/30'
-                      }`}
-                    >
-                      <td className="px-6 py-4 font-mono text-sm font-bold text-primary">{item.id}</td>
-                      <td className="px-6 py-4 text-sm text-on-surface">{item.type}</td>
-                      <td className="px-6 py-4 text-sm text-on-surface">{item.address}</td>
-                      <td className="px-6 py-4 text-sm text-on-surface-variant">{item.district}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusColor(item.status)}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${statusDot(item.status)}`}></span>
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs text-on-surface-variant font-mono">
-                        {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
-                      </td>
-                      <td className="px-2 py-4 text-center">
-                        <a
-                          href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors text-[10px] font-bold border border-green-500/20"
-                          title="네이버 지도 길찾기"
-                        >
-                          <span className="material-symbols-outlined text-sm">navigation</span>
-                        </a>
-                      </td>
+          {/* List — 페이지네이션된 데이터만 렌더링 (구/군 선택 전에 테이블 숨김) */}
+          {(!isSplit || selectedDistrict) && (
+            <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden mt-4">
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-surface-container/50">
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">유형</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">주소</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">관할구</th>
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">상태</th>
+                      <th className="px-6 py-4 text-right text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">좌표</th>
+                      <th className="px-2 py-4 text-center text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">길찾기</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile card list */}
-            <div className="md:hidden divide-y divide-outline-variant/10">
-              {paged.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedId(prev => prev === item.id ? null : item.id)}
-                  className={`w-full text-left p-4 transition-colors ${
-                    selectedId === item.id ? 'bg-primary/10' : 'hover:bg-surface-container/30'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono text-sm font-bold text-primary">{item.id}</span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(item.status)}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot(item.status)}`}></span>
-                      {item.status}
-                    </span>
-                  </div>
-                  <p className="text-sm text-on-surface">{item.address}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-on-surface-variant">{item.type} · {item.district}</p>
-                    <a
-                      href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20"
-                    >
-                      <span className="material-symbols-outlined text-xs">navigation</span>
-                      길찾기
-                    </a>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {isLoading && (
-              <div className="p-12 text-center text-on-surface-variant">
-                <span className="material-symbols-outlined text-4xl animate-spin text-primary">progress_activity</span>
-                <p className="mt-2 font-bold animate-pulse">공공데이터 불러오는 중...</p>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/10">
+                    {paged.map(item => (
+                      <tr
+                        key={item.id}
+                        onClick={() => setSelectedId(prev => prev === item.id ? null : item.id)}
+                        className={`cursor-pointer transition-colors ${
+                          selectedId === item.id
+                            ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
+                            : 'hover:bg-surface-container/30'
+                        }`}
+                      >
+                        <td className="px-6 py-4 font-mono text-sm font-bold text-primary">{item.id}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface">{item.type}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface">{item.address}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{item.district}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusColor(item.status)}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusDot(item.status)}`}></span>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right text-xs text-on-surface-variant font-mono">
+                          {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+                        </td>
+                        <td className="px-2 py-4 text-center">
+                          <a
+                            href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors text-[10px] font-bold border border-green-500/20"
+                            title="네이버 지도 길찾기"
+                          >
+                            <span className="material-symbols-outlined text-sm">navigation</span>
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-
-            {!isLoading && data.length > 0 && filtered.length === 0 && (
-              <div className="p-12 text-center text-on-surface-variant">
-                <span className="material-symbols-outlined text-4xl opacity-30">search_off</span>
-                <p className="mt-2">검색 결과가 없습니다</p>
+  
+              {/* Mobile card list */}
+              <div className="md:hidden divide-y divide-outline-variant/10">
+                {paged.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setSelectedId(prev => prev === item.id ? null : item.id)}
+                    className={`w-full text-left p-4 transition-colors ${
+                      selectedId === item.id ? 'bg-primary/10' : 'hover:bg-surface-container/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-sm font-bold text-primary">{item.id}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusColor(item.status)}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot(item.status)}`}></span>
+                        {item.status}
+                      </span>
+                    </div>
+                    <p className="text-sm text-on-surface">{item.address}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-on-surface-variant">{item.type} · {item.district}</p>
+                      <a
+                        href={`https://map.naver.com/v5/directions/-/-/-/drive?c=${item.lng},${item.lat},15,0,0,0,dh&destination=${encodeURIComponent(item.address)},${item.lng},${item.lat}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20"
+                      >
+                        <span className="material-symbols-outlined text-xs">navigation</span>
+                        길찾기
+                      </a>
+                    </div>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+  
+              {isLoading && (
+                <div className="p-12 text-center text-on-surface-variant">
+                  <span className="material-symbols-outlined text-4xl animate-spin text-primary">progress_activity</span>
+                  <p className="mt-2 font-bold animate-pulse">공공데이터 불러오는 중...</p>
+                </div>
+              )}
+  
+              {!isLoading && data.length > 0 && filtered.length === 0 && (
+                <div className="p-12 text-center text-on-surface-variant">
+                  <span className="material-symbols-outlined text-4xl opacity-30">search_off</span>
+                  <p className="mt-2">검색 결과가 없습니다</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Bottom pagination (duplicated for convenience) */}
           {filtered.length > PAGE_SIZE && (

@@ -17,7 +17,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
 };
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const SHIFT_PATTERN = ['주간', '야간', '비번', '비번']; // 3교대 + 비번비번
+
 
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -32,12 +32,17 @@ export default function Calendar() {
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<Schedule['type']>('점검');
   const [newMemo, setNewMemo] = useState('');
-  const [shiftStartDate, setShiftStartDate] = useState<string>(() => {
-    return localStorage.getItem('119helper-shift-start') || '';
+  const [shiftPattern, setShiftPattern] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('119helper-shift-pattern');
+      return saved ? JSON.parse(saved) : ['주간', '야간', '비번', '휴무'];
+    } catch { return ['주간', '야간', '비번', '휴무']; }
   });
-  const [shiftGroup, setShiftGroup] = useState<number>(() => {
-    const saved = localStorage.getItem('119helper-shift-group');
-    return saved ? parseInt(saved) : 0;
+  const [shiftAnchorDate, setShiftAnchorDate] = useState<string>(() => {
+    return localStorage.getItem('119helper-shift-anchor') || '';
+  });
+  const [shiftPreset, setShiftPreset] = useState<string>(() => {
+    return localStorage.getItem('119helper-shift-preset') || '4조 2교대 (주야비휴)';
   });
 
   useEffect(() => {
@@ -45,9 +50,10 @@ export default function Calendar() {
   }, [schedules]);
 
   useEffect(() => {
-    if (shiftStartDate) localStorage.setItem('119helper-shift-start', shiftStartDate);
-    localStorage.setItem('119helper-shift-group', shiftGroup.toString());
-  }, [shiftStartDate, shiftGroup]);
+    localStorage.setItem('119helper-shift-pattern', JSON.stringify(shiftPattern));
+    localStorage.setItem('119helper-shift-anchor', shiftAnchorDate);
+    localStorage.setItem('119helper-shift-preset', shiftPreset);
+  }, [shiftPattern, shiftAnchorDate, shiftPreset]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -56,6 +62,9 @@ export default function Calendar() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  
+  // 오늘 자정 객체 (계산용)
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   // 공휴일 데이터 — 정적 데이터에서 즉시 로드 (API 불필요)
   const holidays = useMemo(() => getStaticHolidays(year, month + 1), [year, month]);
@@ -72,22 +81,31 @@ export default function Calendar() {
 
   // Calculate shift for a given date
   const getShift = (day: number): string | null => {
-    if (!shiftStartDate) return null;
-    const start = new Date(shiftStartDate);
+    if (!shiftAnchorDate || shiftPattern.length === 0) return null;
+    const anchor = new Date(shiftAnchorDate);
     const target = new Date(year, month, day);
-    const diffDays = Math.floor((target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return null;
-    const idx = (diffDays + shiftGroup) % SHIFT_PATTERN.length;
-    return SHIFT_PATTERN[idx];
+    const diffDays = Math.floor((target.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
+    let idx = diffDays % shiftPattern.length;
+    if (idx < 0) idx += shiftPattern.length;
+    return shiftPattern[idx];
+  };
+
+  const getTodayShiftIndex = (): number | '' => {
+    if (!shiftAnchorDate || shiftPattern.length === 0) return '';
+    const anchor = new Date(shiftAnchorDate);
+    const diffDays = Math.floor((todayMidnight.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
+    let idx = diffDays % shiftPattern.length;
+    if (idx < 0) idx += shiftPattern.length;
+    return idx;
   };
 
   const shiftColor = (shift: string) => {
-    switch (shift) {
-      case '주간': return 'text-amber-400 bg-amber-500/10';
-      case '야간': return 'text-indigo-400 bg-indigo-500/10';
-      case '비번': return 'text-gray-500 bg-gray-500/10';
-      default: return '';
-    }
+    if (shift.includes('주간') || shift.includes('주')) return 'text-amber-400 bg-amber-500/10';
+    if (shift.includes('야간') || shift.includes('야')) return 'text-indigo-400 bg-indigo-500/10';
+    if (shift.includes('비번') || shift.includes('비')) return 'text-green-500 bg-green-500/10';
+    if (shift.includes('휴무') || shift.includes('휴')) return 'text-gray-500 bg-gray-500/10';
+    if (shift.includes('당직') || shift.includes('당')) return 'text-red-400 bg-red-500/10';
+    return 'text-primary bg-primary/10';
   };
 
   const addSchedule = () => {
@@ -218,40 +236,77 @@ export default function Calendar() {
 
         {/* Side Panel */}
         <div className="lg:col-span-4 space-y-4">
-          {/* Shift Settings */}
+          {/* Shift Settings Wizard */}
           <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5">
             <h4 className="text-sm font-bold text-on-surface mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-lg">work_history</span>
-              교대 근무 설정
+              나의 근무 설정
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* Preset Selector */}
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wider">근무 시작일(기준일)</label>
-                <input
-                  type="date"
-                  value={shiftStartDate}
-                  onChange={e => setShiftStartDate(e.target.value)}
-                  className="w-full mt-1 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wider">기준일의 근무조</label>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">근무 형태</label>
                 <select
-                  value={shiftGroup}
-                  onChange={e => setShiftGroup(parseInt(e.target.value))}
-                  className="w-full mt-1 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  value={shiftPreset}
+                  onChange={e => {
+                    const preset = e.target.value;
+                    setShiftPreset(preset);
+                    if (preset === '4조 2교대 (주야비휴)') setShiftPattern(['주간', '야간', '비번', '휴무']);
+                    else if (preset === '3조 1교대 (당비비)') setShiftPattern(['당직', '비번', '비번']);
+                    else if (preset === '3조 2교대 (당비휴)') setShiftPattern(['당직', '비번', '휴무']);
+                    else if (preset === '21주기 (주야비)') setShiftPattern(['주간','주간','주간','주간','주간','비번','야간','비번','야간','비번','야간','비번','야간','비번','당직','비번','비번','비번','비번','비번','비번']);
+                  }}
+                  className="w-full mt-1 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
-                  <option value={0}>주간</option>
-                  <option value={1}>야간</option>
-                  <option value={2}>비번1</option>
-                  <option value={3}>비번2</option>
+                  <option value="4조 2교대 (주야비휴)">4조 2교대 (주야비휴)</option>
+                  <option value="3조 1교대 (당비비)">3조 1교대 (당비비)</option>
+                  <option value="3조 2교대 (당비휴)">3조 2교대 (당비휴)</option>
+                  <option value="21주기 (주야비)">21주기 (주야비)</option>
+                  <option value="직접 입력">직접 입력...</option>
                 </select>
               </div>
+
+              {/* Custom Pattern Input */}
+              {shiftPreset === '직접 입력' && (
+                <div>
+                  <label className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">근무 패턴 (쉼표로 구분)</label>
+                  <input
+                    type="text"
+                    value={shiftPattern.join(',')}
+                    onChange={e => setShiftPattern(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                    placeholder="예: 주간,야간,비번,휴무"
+                    className="w-full mt-1 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              )}
+
+              {/* Today's Shift Selector */}
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wider font-bold">오늘의 근무는?</label>
+                <select
+                  value={getTodayShiftIndex()}
+                  onChange={e => {
+                    const idx = parseInt(e.target.value);
+                    if (isNaN(idx)) return;
+                    // Find anchor date: if today is index `idx`, anchor was `idx` days ago
+                    const anchor = new Date(todayMidnight.getTime() - idx * 24 * 60 * 60 * 1000);
+                    const anchorStr = `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}-${String(anchor.getDate()).padStart(2, '0')}`;
+                    setShiftAnchorDate(anchorStr);
+                  }}
+                  className="w-full mt-1 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-on-surface text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="" disabled>선택하세요</option>
+                  {shiftPattern.map((s, i) => (
+                    <option key={i} value={i}>{i + 1}일차 - {s}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex gap-2 mt-2 flex-wrap">
-                {SHIFT_PATTERN.map((s, i) => (
+                {shiftPattern.slice(0, 10).map((s, i) => (
                   <span key={i} className={`text-[10px] font-bold px-2 py-1 rounded ${shiftColor(s)}`}>{s}</span>
                 ))}
-                <span className="text-[10px] text-on-surface-variant ml-1">순환</span>
+                {shiftPattern.length > 10 && <span className="text-[10px] text-on-surface-variant ml-1 font-bold">... (총 {shiftPattern.length}일 주기)</span>}
               </div>
             </div>
           </div>

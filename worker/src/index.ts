@@ -21,10 +21,12 @@ import { handleAnnualFireStats } from './routes/annualFireStats';
 import { handleFireObject } from './routes/fireObject';
 import { handleFireDamage } from './routes/fireDamage';
 import { handleCivilShelter } from './routes/civilShelter';
+
 import { newsHandler } from './routes/news';
 import { handleWildfire } from './routes/wildfire';
 import { handleTsunamiShelter } from './routes/tsunamiShelter';
 import { handleLaw } from './routes/law';
+import { handleDisasterMsg } from './routes/disaster';
 
 export interface Env {
   KMA_API_KEY: string;
@@ -43,6 +45,7 @@ export interface Env {
   FIRE_DAMAGE_API_KEY: string;
   WILDFIRE_API_KEY: string;
   TSUNAMI_SHELTER_API_KEY: string;
+  DISASTER_API_KEY: string;
   ENVIRONMENT: string;
 }
 
@@ -53,18 +56,18 @@ export default {
       return handleOptions(request);
     }
 
-    // ?�� 비공�?API ???�용??Origin�??�과
+    // ? 비공?API ???용??Origin??과
     if (!isOriginAllowed(request)) {
       return new Response('Forbidden', { status: 403 });
     }
 
-    // ?���?Rate Limiting (분당 60??
+    // ??Rate Limiting (분당 60??
     const rateCheck = checkRateLimit(request);
     if (!rateCheck.allowed) {
       return rateLimitResponse(request);
     }
 
-    // GET�??�용
+    // GET??용
     if (request.method !== 'GET') {
       return errorResponse('Method not allowed', request, 405);
     }
@@ -74,16 +77,16 @@ export default {
 
     try {
       const cacheUrl = new URL(url.toString());
-      cacheUrl.searchParams.delete('_t'); // 브라?��? 캐시버스???�라미터 무시
+      cacheUrl.searchParams.delete('_t'); // 브라?? 캐시버스???라미터 무시
       
       if (path.startsWith('/api/fire-annual/')) {
-        cacheUrl.searchParams.set('_cv', '3'); // 기존 캐시 버전 관�??��?
+        cacheUrl.searchParams.set('_cv', '3'); // 기존 캐시 버전 관???
       }
 
       const cacheKey = new Request(cacheUrl.toString(), { method: 'GET' });
       const cache = caches.default;
 
-      // 1. 공용 캐시(Edge Cache) ?�중 ?��? ?�인
+      // 1. 공용 캐시(Edge Cache) ?중 ?? ?인
       const cached = await cache.match(cacheKey);
       if (cached) {
         const res = new Response(cached.body, cached);
@@ -94,7 +97,7 @@ export default {
         return res;
       }
 
-      // 2. 캐시가 ?�으�??�본 API ?�출
+      // 2. 캐시가 ?으??본 API ?출
       let result: { data: any, cacheTtl: number } | null = null;
       let isNews = false;
       let newsResponse: Response | null = null;
@@ -122,6 +125,7 @@ export default {
       }
       else if (path === '/api/wildfire') result = await handleWildfire(url, env.WILDFIRE_API_KEY);
       else if (path === '/api/tsunami-shelter') result = await handleTsunamiShelter(url, env.TSUNAMI_SHELTER_API_KEY);
+      else if (path === '/api/disaster-msg') result = await handleDisasterMsg(url, env.DISASTER_API_KEY);
       else if (path.startsWith('/api/law')) {
         return await handleLaw(request);
       }
@@ -132,7 +136,7 @@ export default {
         return errorResponse(`Not found: ${path}`, request, 404);
       }
 
-      // 3. ?�답 ?�성 �?캐시 ?�??
+      // 3. 응답 생성 및 캐시 저장
       let response: Response;
 
       if (isNews && newsResponse) {

@@ -9,7 +9,7 @@ import StickyNotes from './StickyNotes';
 import { WildfireTicker } from './WildfireTicker';
 import { WindCompass } from './WindCompass';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'checklist';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -42,6 +42,7 @@ export const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'calc_air', tab: 'calculator', subId: 'air_tank_timer', icon: 'timer', label: '공기호흡기', color: 'text-amber-400', category: '계산기' },
   { id: 'calc_unit', tab: 'calculator', subId: 'unit_converter', icon: 'swap_horiz', label: '단위 변환', color: 'text-indigo-400', category: '계산기' },
   // 주요 탭
+  { id: 'checklist', tab: 'checklist', icon: 'check_circle', label: '장비점검', color: 'text-orange-400', category: '현장 도구' },
   { id: 'field_timer', tab: 'field-timer', icon: 'timer', label: '현장 타이머', color: 'text-red-500', category: '현장 도구' },
   { id: 'building', tab: 'building', icon: 'apartment', label: '건축물대장', color: 'text-purple-400', category: '조회' },
   { id: 'multiuse', tab: 'multiuse', icon: 'store', label: '다중이용업소', color: 'text-teal-400', category: '조회' },
@@ -56,7 +57,7 @@ export const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'policy', tab: 'policy', icon: 'gavel', label: '법안/지침', color: 'text-green-500', category: '행정/기타' },
 ];
 
-const DEFAULT_TOOLS = ['calc_water', 'field_timer', 'building', 'er'];
+const DEFAULT_TOOLS = ['checklist', 'calc_water', 'field_timer', 'building', 'er'];
 
 const WeatherParticles = React.memo(({ type }: { type: string }) => {
   if (!type || type === '없음') return null;
@@ -316,27 +317,36 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
 
           {/* Quick Stats Row */}
           <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => onNavigate('hydrants')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group relative overflow-hidden">
-              <span className="material-symbols-outlined text-primary text-xl group-hover:scale-110 transition-transform">fire_hydrant</span>
-              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">
-                {isLoadingFacilities ? <span className="text-sm font-medium animate-pulse text-on-surface-variant">불러오는 중...</span> : hydrantsCount.toLocaleString()}
+            <button onClick={() => onNavigate('hydrants')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-left hover:border-primary/50 hover:bg-surface-container-low transition-all group relative overflow-hidden shadow-sm hover:shadow-md">
+              <span className="material-symbols-outlined text-primary text-2xl group-hover:scale-110 transition-transform">fire_hydrant</span>
+              <p className="text-3xl font-extrabold text-on-surface mt-2 font-headline">
+                {isLoadingFacilities ? <span className="text-base font-medium animate-pulse text-on-surface-variant">조회 중...</span> : hydrantsCount.toLocaleString()}
               </p>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">소화전</p>
+              <p className="text-xs text-on-surface-variant font-bold mt-1">소화전</p>
+              <div className="absolute right-4 bottom-4 bg-primary/10 text-primary px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 group-hover:bg-primary group-hover:text-on-primary transition-colors">
+                <span className="material-symbols-outlined text-[12px]">map</span> 지도로 보기
+              </div>
             </button>
-            <button onClick={() => onNavigate('waterTowers')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 transition-colors group relative overflow-hidden">
-              <span className="material-symbols-outlined text-secondary text-xl group-hover:scale-110 transition-transform">water_pump</span>
-              <p className="text-2xl font-extrabold text-on-surface mt-1 font-headline">
+            <button onClick={() => onNavigate('waterTowers')} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-left hover:border-secondary/50 hover:bg-surface-container-low transition-all group relative overflow-hidden shadow-sm hover:shadow-md">
+              <span className="material-symbols-outlined text-secondary text-2xl group-hover:scale-110 transition-transform">water_pump</span>
+              <p className="text-3xl font-extrabold text-on-surface mt-2 font-headline">
                 {isLoadingFacilities
-                  ? <span className="text-sm font-medium animate-pulse text-on-surface-variant">불러오는 중...</span>
+                  ? <span className="text-base font-medium animate-pulse text-on-surface-variant">조회 중...</span>
                   : towersCount.toLocaleString()
                 }
               </p>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">급수탑/저수조</p>
+              <p className="text-xs text-on-surface-variant font-bold mt-1">급수탑 / 저수조</p>
+              <div className="absolute right-4 bottom-4 bg-secondary/10 text-secondary px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
+                <span className="material-symbols-outlined text-[12px]">map</span> 지도로 보기
+              </div>
             </button>
-            <button onClick={() => onNavigate('statistics' as TabId)} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-orange-500/30 transition-colors group relative overflow-hidden col-span-2">
-              <span className="material-symbols-outlined text-orange-400 text-xl group-hover:scale-110 transition-transform">bar_chart</span>
-              <p className="text-lg font-extrabold text-on-surface mt-1 font-headline">통계 · 분석</p>
-              <p className="text-[10px] text-on-surface-variant">연간화재통계 · 화재분석 · 구급출동분석</p>
+            <button onClick={() => onNavigate('statistics' as TabId)} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-orange-500/50 hover:bg-surface-container-low transition-all group relative overflow-hidden col-span-2 shadow-sm hover:shadow-md flex items-center justify-between">
+              <div>
+                <span className="material-symbols-outlined text-orange-400 text-xl group-hover:scale-110 transition-transform mb-1 block">bar_chart</span>
+                <p className="text-lg font-extrabold text-on-surface font-headline">관내 화재 및 구급 통계 분석</p>
+                <p className="text-[10px] text-on-surface-variant mt-0.5">연간화재통계 · 다발지역분석 · 구급출동현황</p>
+              </div>
+              <span className="material-symbols-outlined text-outline-variant group-hover:text-orange-400 transition-colors">chevron_right</span>
             </button>
           </div>
         </div>

@@ -78,16 +78,17 @@ export async function newsHandler(request: Request, env: any): Promise<Response>
     }
 
     // 4. 캐시도 없으면 빈 RSS 반환 (프론트에서 "뉴스 없음" 표시)
-    return xmlResponse(emptyRss(query));
+    return xmlResponse(emptyRss(query), true);
   }
 }
 
-function xmlResponse(body: string): Response {
+function xmlResponse(body: string, isError: boolean = false): Response {
   return new Response(body, {
+    status: isError ? 503 : 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
       'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=1800', // Edge 캐시 30분
+      'Cache-Control': isError ? 'no-store, no-cache, must-revalidate' : 'public, max-age=1800', // 에러 시 캐시 방지
     },
   });
 }
