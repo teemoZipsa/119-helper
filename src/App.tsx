@@ -25,8 +25,9 @@ import FieldTimer from './components/FieldTimer';
 import NewsDashboard from './components/NewsDashboard';
 import PolicyDashboard from './components/PolicyDashboard';
 import { WildfireView } from './components/WildfireView';
+import LawDashboard from './components/LawDashboard';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'law';
 type ShelterCategory = 'hydrants' | 'waterTowers' | 'civil';
 
 // 알림 시스템 타입
@@ -61,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'calculator', icon: 'calculate', label: '계산기' },
   { id: 'field-timer', icon: 'timer', label: '현장 타이머' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
+  { id: 'law', icon: 'menu_book', label: '관련 법령' },
   { id: 'policy', icon: 'gavel', label: '법안/지침' },
 ];
 
@@ -351,6 +353,7 @@ export default function App() {
       case 'field-timer': return <FieldTimer />;
       case 'calendar': return <Calendar />;
       case 'news': return <NewsDashboard city={city} />;
+      case 'law': return <LawDashboard />;
       case 'policy': return <PolicyDashboard />;
       default: return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} cityIndex={cityIndex} />;
     }
