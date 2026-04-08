@@ -379,7 +379,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               />
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-900/30 transition-colors duration-1000 z-0" />
               <div className="relative z-10">
-                <span className="material-symbols-outlined text-blue-400 text-2xl transition-transform">fire_hydrant</span>
+                <span className="material-symbols-outlined text-blue-400 text-2xl transition-transform duration-500 group-hover:scale-125 origin-left">fire_hydrant</span>
                 <p className="text-3xl font-extrabold text-white mt-2 font-headline drop-shadow-sm">
                   {isLoadingFacilities ? <span className="text-base font-medium animate-pulse text-white/70">조회 중...</span> : hydrantsCount.toLocaleString()}
                 </p>
@@ -387,7 +387,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               </div>
               <button 
                 onClick={(e) => { e.stopPropagation(); onNavigate('hydrants'); }} 
-                className="absolute right-4 bottom-4 bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-500 hover:text-white border border-blue-500/30 backdrop-blur-sm transition-all focus:ring-2 focus:ring-blue-500/50 focus:outline-none cursor-pointer z-10"
+                className="absolute right-4 bottom-4 bg-blue-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-500 hover:scale-105 border border-blue-400/50 shadow-md backdrop-blur-md transition-all focus:ring-2 focus:ring-blue-500/50 focus:outline-none cursor-pointer z-10"
               >
                 <span className="material-symbols-outlined text-[14px]">map</span> 지도로 보기
               </button>
@@ -401,7 +401,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               />
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-900/30 transition-colors duration-1000 z-0" />
               <div className="relative z-10">
-                <span className="material-symbols-outlined text-emerald-400 text-2xl transition-transform">water_pump</span>
+                <span className="material-symbols-outlined text-emerald-400 text-2xl transition-transform duration-500 group-hover:scale-125 origin-left">water_pump</span>
                 <p className="text-3xl font-extrabold text-white mt-2 font-headline drop-shadow-sm">
                   {isLoadingFacilities
                     ? <span className="text-base font-medium animate-pulse text-white/70">조회 중...</span>
@@ -412,7 +412,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
               </div>
               <button 
                 onClick={(e) => { e.stopPropagation(); onNavigate('waterTowers'); }} 
-                className="absolute right-4 bottom-4 bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500 hover:text-white border border-emerald-500/30 backdrop-blur-sm transition-all focus:ring-2 focus:ring-emerald-500/50 focus:outline-none cursor-pointer z-10"
+                className="absolute right-4 bottom-4 bg-emerald-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500 hover:scale-105 border border-emerald-400/50 shadow-md backdrop-blur-md transition-all focus:ring-2 focus:ring-emerald-500/50 focus:outline-none cursor-pointer z-10"
               >
                 <span className="material-symbols-outlined text-[14px]">map</span> 지도로 보기
               </button>
