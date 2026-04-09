@@ -32,8 +32,17 @@ function cleanText(s?: string): string {
     .trim();
 }
 
-export default function LawDashboard() {
-  const [activeTab, setActiveTab] = useState<'SEARCH' | 'DEFENSE'>('SEARCH');
+export default function LawDashboard({ subId }: { subId?: string }) {
+  const [activeTab, setActiveTab] = useState<'SEARCH' | 'DEFENSE'>(subId === 'DEFENSE' ? 'DEFENSE' : 'SEARCH');
+  
+  // subId가 변경될 때마다 탭 업데이트
+  useEffect(() => {
+    if (subId === 'DEFENSE') {
+      setActiveTab('DEFENSE');
+    } else if (subId === 'SEARCH') {
+      setActiveTab('SEARCH');
+    }
+  }, [subId]);
   
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<LawSearchItem[]>([]);

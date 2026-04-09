@@ -13,7 +13,7 @@ import MiniTimerWidget from './MiniTimerWidget';
 import hydrantBg from '../assets/hydrant_bg.jpg';
 import waterTowerBg from '../assets/water_tower_bg.jpg';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'checklist';
+type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'checklist' | 'law';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -50,6 +50,7 @@ const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'calc_air', tab: 'calculator', subId: 'air_tank_timer', icon: 'timer', label: '공기호흡기', color: 'text-amber-400', category: '계산기', bgImage: '/images/tools/bg_checklist.png' },
   { id: 'calc_unit', tab: 'calculator', subId: 'unit_converter', icon: 'swap_horiz', label: '단위 변환', color: 'text-indigo-400', category: '계산기' },
   // 주요 탭
+  { id: 'law_defense', tab: 'law', subId: 'DEFENSE', icon: 'gavel', label: '법률 방어망', color: 'text-rose-500', category: '법률 보호', bgImage: '/images/tools/bg_law.png' },
   { id: 'checklist', tab: 'checklist', icon: 'check_circle', label: '장비점검', color: 'text-orange-400', category: '현장 도구', bgImage: '/images/tools/bg_checklist.png' },
   { id: 'field_timer', tab: 'field-timer', icon: 'timer', label: '현장 타이머', color: 'text-red-500', category: '현장 도구', bgImage: '/images/tools/bg_timer.png' },
   { id: 'building', tab: 'shelter', subId: 'building', icon: 'apartment', label: '건축물대장', color: 'text-purple-400', category: '조회', bgImage: '/images/tools/bg_building.png' },
@@ -64,7 +65,7 @@ const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'policy', tab: 'policy', icon: 'gavel', label: '법안/지침', color: 'text-green-500', category: '행정/기타' },
 ];
 
-const DEFAULT_TOOLS = ['facility_hydrants', 'facility_towers', 'checklist', 'calc_water', 'calc_hazmat', 'building'];
+const DEFAULT_TOOLS = ['facility_hydrants', 'facility_towers', 'checklist', 'calc_water', 'calc_hazmat', 'law_defense'];
 
 const WeatherParticles = React.memo(({ type }: { type: string }) => {
   if (!type || type === '없음') return null;
@@ -125,7 +126,15 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
   const [customTools, setCustomTools] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('119helper-custom-tools');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        let parsed = JSON.parse(saved) as string[];
+        // 자동 마이그레이션: 'building'(건축물대장) 대신 'law_defense'(법률방어망)를 기본으로 노출
+        if (parsed.includes('building') && !parsed.includes('law_defense')) {
+          parsed = parsed.map(t => t === 'building' ? 'law_defense' : t);
+          localStorage.setItem('119helper-custom-tools', JSON.stringify(parsed));
+        }
+        return parsed;
+      }
     } catch { /* parse error fallback */ }
     return DEFAULT_TOOLS;
   });

@@ -64,8 +64,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'field-timer', icon: 'timer', label: '현장 타이머' },
   { id: 'checklist', icon: 'check_circle', label: '장비점검' },
   { id: 'calendar', icon: 'calendar_month', label: '달력/일정' },
-  { id: 'law', icon: 'menu_book', label: '관련 법령' },
-  { id: 'policy', icon: 'gavel', label: '법안/지침' },
+  { id: 'law', icon: 'security', label: '실전 법률방어' },
+  { id: 'policy', icon: 'account_balance', label: '법안/지침' },
 ];
 
 // 모바일 바텀 네비게이션 탭
@@ -429,7 +429,7 @@ export default function App() {
       case 'news': return <NewsDashboard city={city} />;
       case 'checklist': return <EquipmentChecklist />;
       case 'equipment-cert': return <EquipmentCertSearch />;
-      case 'law': return <LawDashboard />;
+      case 'law': return <LawDashboard subId={activeSubId} />;
       case 'policy': return <PolicyDashboard />;
       default: return <DashboardView onNavigate={handleNavigate} city={city} fireFacilities={fireFacilities} isLoadingFacilities={isLoadingFacilities} cityIndex={cityIndex} />;
     }
