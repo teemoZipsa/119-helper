@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getERRealTimeBeds, getERMessages, getERSevereIllness, CITY_TO_SIDO, type ERRealTimeData, type ERMessage, type ERSevereIllness } from '../services/erApi';
 
+import PrivateAmbulanceView from './PrivateAmbulanceView';
+
 /* ─── 중증질환 필드 한글 매핑 ─── */
+const SEVERE_LABELS: Record<string, string> = {
+  MKioskTy1: 'ST분절 상승 심근경색',
+// ... (skip lines since I need to use the exact replacement range, wait I'll get start line correctly by looking at the file again above)
 const SEVERE_LABELS: Record<string, string> = {
   MKioskTy1: 'ST분절 상승 심근경색',
   MKioskTy2: '뇌경색 (급성기)',
@@ -45,6 +50,8 @@ interface ERViewProps {
 }
 
 export default function ERDashboard({ city }: ERViewProps) {
+  const [activeTab, setActiveTab] = useState<'er' | 'ambulance'>('er');
+  
   const [erData, setErData] = useState<ERRealTimeData[]>([]);
   const [messages, setMessages] = useState<ERMessage[]>([]);
   const [severeData, setSevereData] = useState<Record<string, ERSevereIllness>>({});
@@ -107,23 +114,51 @@ export default function ERDashboard({ city }: ERViewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-extrabold text-on-surface font-headline">🏥 응급실 실시간 현황</h2>
+          <h2 className="text-2xl font-extrabold text-on-surface font-headline">🚑 구급/응급 안내</h2>
           <p className="text-sm text-on-surface-variant mt-1">
-            국립중앙의료원 실시간 가용병상 API · <span className="text-primary font-bold">{CITY_TO_SIDO[city] || '서울특별시'}</span>
-            {lastUpdate && <span className="ml-2 text-on-surface-variant">· 갱신 {lastUpdate}</span>}
+            실시간 응급실 가용 현황 및 비응급 사설 구급차 안내 · <span className="text-primary font-bold">{CITY_TO_SIDO[city] || '서울특별시'}</span>
           </p>
         </div>
-        <button onClick={fetchER} disabled={loading} className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2 disabled:opacity-50">
-          <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
-          새로고침
+      </div>
+
+      <div className="flex gap-2 bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-1.5 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('er')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+            activeTab === 'er'
+              ? 'bg-primary text-on-primary shadow-lg shadow-primary/20'
+              : 'text-on-surface-variant hover:bg-surface-container-high/50'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg" style={activeTab === 'er' ? { fontVariationSettings: "'FILL' 1" } : undefined}>local_hospital</span>
+          실시간 응급실 현황
+        </button>
+        <button
+          onClick={() => setActiveTab('ambulance')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${
+            activeTab === 'ambulance'
+              ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20'
+              : 'text-on-surface-variant hover:bg-surface-container-high/50'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg" style={activeTab === 'ambulance' ? { fontVariationSettings: "'FILL' 1" } : undefined}>airport_shuttle</span>
+          사설 구급차(이송단) 정보
         </button>
       </div>
 
+      {activeTab === 'er' ? (
+        <div className="space-y-6">
+          <div className="flex justify-end">
+            <button onClick={fetchER} disabled={loading} className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2 disabled:opacity-50">
+              <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
+              {lastUpdate && <span className="hidden sm:inline font-normal opacity-80 mr-1">{lastUpdate}</span>}
+              새로고침
+            </button>
+          </div>
 
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-5 text-center">
           <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">조회 병원</p>
           <p className="text-3xl font-extrabold text-on-surface mt-1">{erData.length}</p>
         </div>
@@ -348,6 +383,10 @@ export default function ERDashboard({ city }: ERViewProps) {
             </div>
           </div>
         </div>
+      )}
+        </div>
+      ) : (
+        <PrivateAmbulanceView city={city} />
       )}
     </div>
   );

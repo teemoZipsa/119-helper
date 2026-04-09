@@ -5,8 +5,9 @@ import EmergencyAnalysis from './EmergencyAnalysis';
 import HazmatView from './HazmatView';
 import FireDamageView from './FireDamageView';
 import MultiUseView from './MultiUseView';
+import ConsumerHazardView from './ConsumerHazardView';
 
-type SubTab = 'annual' | 'fire' | 'fire-damage' | 'emergency' | 'hazmat' | 'multiuse';
+type SubTab = 'annual' | 'fire' | 'fire-damage' | 'emergency' | 'hazmat' | 'multiuse' | 'hazards';
 
 const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
   { id: 'annual', label: '연간 화재통계', icon: 'bar_chart' },
@@ -15,6 +16,7 @@ const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
   { id: 'emergency', label: '구급 출동 분석', icon: 'ambulance' },
   { id: 'hazmat', label: '위험물시설', icon: 'warning' },
   { id: 'multiuse', label: '다중이용업소', icon: 'store' },
+  { id: 'hazards', label: '생활위해사고', icon: 'personal_injury' },
 ];
 
 export default function StatisticsView({ city }: { city: string }) {
@@ -57,6 +59,7 @@ export default function StatisticsView({ city }: { city: string }) {
       {activeSubTab === 'emergency' && <EmergencyAnalysis />}
       {activeSubTab === 'hazmat' && <HazmatView />}
       {activeSubTab === 'multiuse' && <MultiUseView city={city} />}
+      {activeSubTab === 'hazards' && <ConsumerHazardView />}
     </div>
   );
 }
