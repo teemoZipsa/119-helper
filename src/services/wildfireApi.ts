@@ -33,12 +33,26 @@ export async function fetchWildfires(numOfRows = '200', pageNo = '1', forceRefre
 
     const items = data.body.map((item: any) => {
       const extinguished = item.EXTNGS_CMPTN_DT || null;
+      const occurredAtStr = item.FRSTFR_GNT_DT || '';
+      
+      // 발생 시간 파싱 (안전한 포맷 변환)
+      const occurredDate = new Date(occurredAtStr.replace(/\/?\s?/g, '').length === 14 ? 
+        occurredAtStr.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3T$4:$5:$6+09:00') : 
+        occurredAtStr.replace(/\//g, '-'));
+        
+      const hoursElapsed = (!isNaN(occurredDate.getTime())) 
+        ? (Date.now() - occurredDate.getTime()) / (1000 * 60 * 60) 
+        : 0;
+
+      // 진화완료 시간이 없어도 발생 후 48시간이 지났다면 진화 완료된 것으로(상태 누락) 간주
+      const isOngoing = !extinguished && hoursElapsed < 48;
+
       return {
         id: item.FRSTFR_INFO_ID || Math.random().toString(),
         address: item.FRSTFR_DCLR_ADDR || '위치 미상',
-        occurredAt: item.FRSTFR_GNT_DT || '',
+        occurredAt: occurredAtStr,
         extinguishedAt: extinguished,
-        isOngoing: !extinguished, // 진화완료일시가 없으면 진화중으로 판단
+        isOngoing,
         damageArea: item.GRS_FRSTFR_DAM_AREA || 0,
         lat: item.FRSTFR_PSTN_YCRD ? parseFloat(item.FRSTFR_PSTN_YCRD) : undefined,
         lng: item.FRSTFR_PSTN_XCRD ? parseFloat(item.FRSTFR_PSTN_XCRD) : undefined,
