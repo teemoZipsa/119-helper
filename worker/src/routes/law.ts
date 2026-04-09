@@ -9,7 +9,7 @@
  * korean-law-mcp fly.dev 서버(REST wrapper)를 경유합니다.
  */
 
-const LAW_API_BASE = 'https://www.law.go.kr/DRF';
+const LAW_API_BASE = 'http://www.law.go.kr/DRF';
 const OC = 'fire119helper';
 
 const HEADERS: Record<string, string> = {
@@ -67,7 +67,7 @@ async function searchLaw(url: URL): Promise<Response> {
     });
 
     const fallbackRes = await fetch(
-      `https://www.law.go.kr/DRF/lawSearch.do?OC=test&${fallbackParams}`,
+      `http://www.law.go.kr/DRF/lawSearch.do?OC=test&${fallbackParams}`,
       { headers: HEADERS }
     );
 
