@@ -35,31 +35,35 @@ interface QuickToolDef {
   label: string;
   color: string;
   category: string;
+  bgImage?: string;
 }
 
 const ALL_QUICK_TOOLS: QuickToolDef[] = [
+  // 소방시설 (기존 위젯을 빠른 도구로 편입)
+  { id: 'facility_hydrants', tab: 'hydrants', icon: 'fire_hydrant', label: '소화전', color: 'text-blue-400', category: '소방시설', bgImage: hydrantBg },
+  { id: 'facility_towers', tab: 'waterTowers', icon: 'water_pump', label: '급수탑', color: 'text-emerald-400', category: '소방시설', bgImage: waterTowerBg },
   // 소방 계산기
-  { id: 'calc_hazmat', tab: 'calculator', subId: 'hazmat_calc', icon: 'science', label: '유해물질', color: 'text-orange-400', category: '계산기' },
-  { id: 'calc_water', tab: 'calculator', subId: 'water_pressure_calc', icon: 'water_drop', label: '수압 계산', color: 'text-blue-400', category: '계산기' },
-  { id: 'calc_hose', tab: 'calculator', subId: 'hose_length_calc', icon: 'straighten', label: '호스 전개', color: 'text-green-400', category: '계산기' },
-  { id: 'calc_air', tab: 'calculator', subId: 'air_tank_timer', icon: 'timer', label: '공기호흡기', color: 'text-amber-400', category: '계산기' },
+  { id: 'calc_hazmat', tab: 'calculator', subId: 'hazmat_calc', icon: 'science', label: '유해물질', color: 'text-orange-400', category: '계산기', bgImage: '/images/tools/bg_hazmat.png' },
+  { id: 'calc_water', tab: 'calculator', subId: 'water_pressure_calc', icon: 'water_drop', label: '수압 계산', color: 'text-blue-400', category: '계산기', bgImage: '/images/tools/bg_water.png' },
+  { id: 'calc_hose', tab: 'calculator', subId: 'hose_length_calc', icon: 'straighten', label: '호스 전개', color: 'text-green-400', category: '계산기', bgImage: '/images/tools/bg_water.png' },
+  { id: 'calc_air', tab: 'calculator', subId: 'air_tank_timer', icon: 'timer', label: '공기호흡기', color: 'text-amber-400', category: '계산기', bgImage: '/images/tools/bg_checklist.png' },
   { id: 'calc_unit', tab: 'calculator', subId: 'unit_converter', icon: 'swap_horiz', label: '단위 변환', color: 'text-indigo-400', category: '계산기' },
   // 주요 탭
-  { id: 'checklist', tab: 'checklist', icon: 'check_circle', label: '장비점검', color: 'text-orange-400', category: '현장 도구' },
-  { id: 'field_timer', tab: 'field-timer', icon: 'timer', label: '현장 타이머', color: 'text-red-500', category: '현장 도구' },
-  { id: 'building', tab: 'shelter', subId: 'building', icon: 'apartment', label: '건축물대장', color: 'text-purple-400', category: '조회' },
-  { id: 'shelter', tab: 'shelter', icon: 'location_city', label: '시설 조회', color: 'text-yellow-400', category: '조회' },
-  { id: 'er', tab: 'er', icon: 'local_hospital', label: '응급실 현황', color: 'text-pink-400', category: '현장 도구' },
+  { id: 'checklist', tab: 'checklist', icon: 'check_circle', label: '장비점검', color: 'text-orange-400', category: '현장 도구', bgImage: '/images/tools/bg_checklist.png' },
+  { id: 'field_timer', tab: 'field-timer', icon: 'timer', label: '현장 타이머', color: 'text-red-500', category: '현장 도구', bgImage: '/images/tools/bg_timer.png' },
+  { id: 'building', tab: 'shelter', subId: 'building', icon: 'apartment', label: '건축물대장', color: 'text-purple-400', category: '조회', bgImage: '/images/tools/bg_building.png' },
+  { id: 'shelter', tab: 'shelter', icon: 'location_city', label: '시설 조회', color: 'text-yellow-400', category: '조회', bgImage: '/images/tools/bg_shelter.png' },
+  { id: 'er', tab: 'er', icon: 'local_hospital', label: '응급실 현황', color: 'text-pink-400', category: '현장 도구', bgImage: '/images/tools/bg_er.png' },
   { id: 'weather', tab: 'weather', icon: 'cloud', label: '기상 정보', color: 'text-sky-400', category: '현장 도구' },
   { id: 'statistics', tab: 'statistics', icon: 'bar_chart', label: '통계 분석', color: 'text-orange-500', category: '행정/기타' },
   { id: 'news', tab: 'news', icon: 'newspaper', label: '소방 뉴스', color: 'text-teal-500', category: '행정/기타' },
-  { id: 'wildfire', tab: 'wildfire', icon: 'local_fire_department', label: '산불 현황', color: 'text-red-500', category: '행정/기타' },
+  { id: 'wildfire', tab: 'wildfire', icon: 'local_fire_department', label: '산불 현황', color: 'text-red-500', category: '행정/기타', bgImage: '/images/tools/bg_wildfire.png' },
   { id: 'manual', tab: 'manual', icon: 'menu_book', label: '대응 매뉴얼', color: 'text-blue-500', category: '행정/기타' },
   { id: 'calendar', tab: 'calendar', icon: 'calendar_month', label: '달력/일정', color: 'text-red-400', category: '행정/기타' },
   { id: 'policy', tab: 'policy', icon: 'gavel', label: '법안/지침', color: 'text-green-500', category: '행정/기타' },
 ];
 
-const DEFAULT_TOOLS = ['checklist', 'calc_water', 'field_timer', 'building', 'er'];
+const DEFAULT_TOOLS = ['facility_hydrants', 'facility_towers', 'checklist', 'calc_water', 'calc_hazmat', 'building'];
 
 const WeatherParticles = React.memo(({ type }: { type: string }) => {
   if (!type || type === '없음') return null;
@@ -325,106 +329,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
             <span className="material-symbols-outlined text-white/50 relative z-10">chevron_right</span>
           </div>
 
-          {/* ER Summary */}
-          <div className="flex-1 relative overflow-hidden rounded-xl p-6 cursor-pointer hover:shadow-2xl transition-shadow group border border-outline-variant/10" onClick={() => onNavigate('er')}>
-            {/* Background Image Layer */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-              style={{ backgroundImage: `url(/images/Gemini_Generated_Image_swyu86swyu86swyu.png)` }}
-            />
-            {/* Dark overlay for text readability & mood */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30 transition-colors duration-1000" />
-            
-            {/* Content Container with z-index to appear above the background */}
-            <div className="relative z-10 flex flex-col h-full justify-between">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-bold uppercase tracking-widest text-white/70">응급실 가용 병상</p>
-                    <span className="text-[10px] bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded text-white">{cityLabel}</span>
-                  </div>
-                  <h4 className="text-4xl font-extrabold mt-1 font-headline text-white drop-shadow-lg">
-                    {erList.length > 0 ? erList.reduce((s, e) => s + (parseInt(e.hvec) || 0), 0) : '...'}
-                  </h4>
-                </div>
-                <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
-                  <span className="material-symbols-outlined text-white text-2xl">emergency</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-white/80 mt-3 drop-shadow">{cityLabel} 관내 {erList.length > 0 ? erList.length : '...'}개 병원 기준</p>
-                <div className="mt-3 flex gap-2 flex-wrap">
-                  {erList.slice(0, 3).map(er => {
-                    const available = parseInt(er.hvec) || 0;
-                    return (
-                      <span 
-                        key={er.dutyName} 
-                        title={available < 0 ? "대기 중인 환자 수" : "잔여 병상 수"}
-                        className={`text-[10px] px-2 py-1 rounded-full border cursor-help backdrop-blur-sm ${available > 0 ? 'bg-green-500/30 border-green-400/40 text-green-100' : 'bg-red-500/30 border-red-400/40 text-red-100'}`}
-                      >
-                        {er.dutyName.replace(/병원|대학교|서울/g, '').trim()} 
-                        {available < 0 ? ` 대기 ${Math.abs(available)}석` : ` 잔여 ${available}석`}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Stats Row */}
-          <div className="grid grid-cols-2 gap-4">
-            <div 
-              className="border border-outline-variant/10 rounded-xl p-5 text-left hover:border-primary/50 transition-all group relative overflow-hidden shadow-sm hover:shadow-md min-h-[140px]"
-            >
-              <div 
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                style={{ backgroundImage: `url(${hydrantBg})` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-900/30 transition-colors duration-1000 z-0" />
-              <div className="relative z-10">
-                <span className="material-symbols-outlined text-blue-400 text-2xl transition-transform duration-500 group-hover:scale-125 origin-left">fire_hydrant</span>
-                <p className="text-3xl font-extrabold text-white mt-2 font-headline drop-shadow-sm">
-                  {isLoadingFacilities ? <span className="text-base font-medium animate-pulse text-white/70">조회 중...</span> : hydrantsCount.toLocaleString()}
-                </p>
-                <p className="text-xs text-white/80 font-bold mt-1 drop-shadow-sm">소화전</p>
-              </div>
-              {/* 카카오맵으로 보기 버튼 (소화전) */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); onNavigate('hydrants'); }} 
-                className="absolute right-3 bottom-3 sm:right-4 sm:bottom-4 bg-blue-600 text-white px-2.5 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-1.5 hover:bg-blue-500 hover:scale-110 border-2 border-white/20 shadow-xl backdrop-blur-md transition-all focus:ring-4 focus:ring-blue-500/50 focus:outline-none cursor-pointer z-20 group"
-              >
-                <span className="material-symbols-outlined text-[18px] sm:text-[20px] transition-transform group-hover:rotate-12">map</span>
-                <span className="hidden sm:inline">지도 보기</span>
-              </button>
-            </div>
-            <div 
-              className="border border-outline-variant/10 rounded-xl p-5 text-left hover:border-secondary/50 transition-all group relative overflow-hidden shadow-sm hover:shadow-md min-h-[140px]"
-            >
-              <div 
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                style={{ backgroundImage: `url(${waterTowerBg})` }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-slate-900/50 to-slate-900/30 transition-colors duration-1000 z-0" />
-              <div className="relative z-10">
-                <span className="material-symbols-outlined text-emerald-400 text-2xl transition-transform duration-500 group-hover:scale-125 origin-left">water_pump</span>
-                <p className="text-3xl font-extrabold text-white mt-2 font-headline drop-shadow-sm">
-                  {isLoadingFacilities
-                    ? <span className="text-base font-medium animate-pulse text-white/70">조회 중...</span>
-                    : towersCount.toLocaleString()
-                  }
-                </p>
-                <p className="text-xs text-white/80 font-bold mt-1 drop-shadow-sm">급수탑 / 저수조</p>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); onNavigate('waterTowers'); }} 
-                className="absolute right-3 bottom-3 sm:right-4 sm:bottom-4 bg-emerald-600 text-white px-2.5 py-2 sm:px-5 sm:py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-1.5 hover:bg-emerald-500 hover:scale-110 border-2 border-white/20 shadow-xl backdrop-blur-md transition-all focus:ring-4 focus:ring-emerald-500/50 focus:outline-none cursor-pointer z-20 group"
-              >
-                <span className="material-symbols-outlined text-[18px] sm:text-[20px] transition-transform group-hover:rotate-12">map</span>
-                <span className="hidden sm:inline">지도 보기</span>
-              </button>
-            </div>
-          </div>
+          {/* Removed ER Summary and Quick Stats Row to make layout more compact */}
         </div>
       </div>
 
@@ -451,7 +356,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           </button>
         </div>
         {showQuickTools && customTools.length > 0 && (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300">
             {customTools.map(toolId => {
               const tool = ALL_QUICK_TOOLS.find(t => t.id === toolId);
               if (!tool) return null;
@@ -459,10 +364,34 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
                 <button
                   key={tool.id}
                   onClick={() => onNavigate(tool.tab, tool.subId)}
-                  className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-xl bg-surface-container hover:bg-surface-container-high transition-all group border border-transparent hover:border-outline-variant/20"
+                  className="relative flex flex-col items-center justify-center gap-2 p-4 md:p-6 rounded-2xl overflow-hidden transition-all group shadow-sm hover:shadow-xl border border-outline-variant/10 min-h-[100px] md:min-h-[120px] bg-surface-container"
                 >
-                  <span className={`material-symbols-outlined text-2xl md:text-3xl ${tool.color} group-hover:scale-110 transition-transform`}>{tool.icon}</span>
-                  <span className="text-xs md:text-sm font-medium text-on-surface whitespace-nowrap">{tool.label}</span>
+                  {/* Background Image Layer */}
+                  {tool.bgImage && (
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                      style={{ backgroundImage: `url(${tool.bgImage})` }}
+                    />
+                  )}
+                  {/* Dark overlay for readability */}
+                  <div className={`absolute inset-0 transition-colors duration-500 ${tool.bgImage ? 'bg-slate-900/60 backdrop-blur-[1px] group-hover:bg-slate-900/40' : 'bg-transparent group-hover:bg-surface-container-highest'}`} />
+                  
+                  <div className="relative z-10 flex flex-col items-center gap-1.5">
+                    <span className={`material-symbols-outlined text-3xl md:text-4xl ${tool.color} group-hover:-translate-y-1 transition-transform drop-shadow-md`}>{tool.icon}</span>
+                    <span className={`text-xs md:text-sm font-extrabold whitespace-nowrap drop-shadow-md ${tool.bgImage ? 'text-white' : 'text-on-surface'}`}>{tool.label}</span>
+                  </div>
+
+                  {/* Optional Badges for Hydrants/Towers */}
+                  {tool.id === 'facility_hydrants' && !isLoadingFacilities && (
+                    <span className="absolute top-2 right-2 flex items-center justify-center bg-blue-500/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-blue-400 backdrop-blur-sm z-20">
+                      {hydrantsCount.toLocaleString()}
+                    </span>
+                  )}
+                  {tool.id === 'facility_towers' && !isLoadingFacilities && (
+                    <span className="absolute top-2 right-2 flex items-center justify-center bg-emerald-500/80 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-emerald-400 backdrop-blur-sm z-20">
+                      {towersCount.toLocaleString()}
+                    </span>
+                  )}
                 </button>
               );
             })}
