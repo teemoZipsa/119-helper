@@ -6,9 +6,6 @@ import PrivateAmbulanceView from './PrivateAmbulanceView';
 /* ─── 중증질환 필드 한글 매핑 ─── */
 const SEVERE_LABELS: Record<string, string> = {
   MKioskTy1: 'ST분절 상승 심근경색',
-// ... (skip lines since I need to use the exact replacement range, wait I'll get start line correctly by looking at the file again above)
-const SEVERE_LABELS: Record<string, string> = {
-  MKioskTy1: 'ST분절 상승 심근경색',
   MKioskTy2: '뇌경색 (급성기)',
   MKioskTy3: '뇌출혈',
   MKioskTy4: '복부손상 (외상)',
