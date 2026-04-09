@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ShieldAlert, Info, FileText, Siren, Gavel, FileCheck } from 'lucide-react';
+import { ShieldAlert, FileText, Siren, Gavel, FileCheck } from 'lucide-react';
 import { LAW_DEFENSE_DOCS, type DefenseCategory, type LawDefenseDoc } from '../data/lawDefenseDocs';
 
 export default function LawDefenseShield() {
