@@ -329,7 +329,53 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
             <span className="material-symbols-outlined text-white/50 relative z-10">chevron_right</span>
           </div>
 
-          {/* Removed ER Summary and Quick Stats Row to make layout more compact */}
+          {/* ER Summary */}
+          <div className="flex-1 relative overflow-hidden rounded-xl p-6 cursor-pointer hover:shadow-2xl transition-shadow group border border-outline-variant/10" onClick={() => onNavigate('er')}>
+            {/* Background Image Layer */}
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+              style={{ backgroundImage: `url(/images/Gemini_Generated_Image_swyu86swyu86swyu.png)` }}
+            />
+            {/* Dark overlay for text readability & mood */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30 transition-colors duration-1000" />
+            
+            {/* Content Container with z-index to appear above the background */}
+            <div className="relative z-10 flex flex-col h-full justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/70">응급실 가용 병상</p>
+                    <span className="text-[10px] bg-white/20 backdrop-blur-sm px-2 py-0.5 rounded text-white">{cityLabel}</span>
+                  </div>
+                  <h4 className="text-4xl font-extrabold mt-1 font-headline text-white drop-shadow-lg">
+                    {erList.length > 0 ? erList.reduce((s, e) => s + (parseInt(e.hvec) || 0), 0) : '...'}
+                  </h4>
+                </div>
+                <div className="p-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
+                  <span className="material-symbols-outlined text-white text-2xl">emergency</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-white/80 mt-3 drop-shadow">{cityLabel} 관내 {erList.length > 0 ? erList.length : '...'}개 병원 기준</p>
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {erList.slice(0, 3).map(er => {
+                    const available = parseInt(er.hvec) || 0;
+                    return (
+                      <span 
+                        key={er.dutyName} 
+                        title={available < 0 ? "대기 중인 환자 수" : "잔여 병상 수"}
+                        className={`text-[10px] px-2 py-1 rounded-full border cursor-help backdrop-blur-sm ${available > 0 ? 'bg-green-500/30 border-green-400/40 text-green-100' : 'bg-red-500/30 border-red-400/40 text-red-100'}`}
+                      >
+                        {er.dutyName.replace(/병원|대학교|서울/g, '').trim()} 
+                        {available < 0 ? ` 대기 ${Math.abs(available)}석` : ` 잔여 ${available}석`}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Removed Quick Stats Row for quick tools compactness */}
         </div>
       </div>
 
