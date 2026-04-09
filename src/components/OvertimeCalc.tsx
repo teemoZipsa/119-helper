@@ -335,12 +335,16 @@ export default function OvertimeCalc() {
   return (
     <div className="bg-surface border border-outline-variant/20 rounded-2xl overflow-hidden flex flex-col h-full shadow-sm">
       {/* Header */}
-      <div className="bg-primary p-6 text-onPrimary text-center relative overflow-hidden">
-        <div className="absolute top-4 left-4 opacity-50">
-          <span className="material-symbols-outlined text-4xl">payments</span>
+      <div className="bg-primary p-5 sm:p-6 text-onPrimary flex flex-col sm:flex-row items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3 mb-2 sm:mb-0">
+          <div className="bg-white/20 p-2 rounded-full hidden sm:block">
+            <span className="material-symbols-outlined text-2xl">payments</span>
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">초과근무 수당 계산기</h1>
+            <p className="text-primaryContainer text-xs sm:text-sm font-medium mt-0.5">2026년 기준 단가 적용</p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-1">초과근무 수당 계산기</h1>
-        <p className="text-primaryContainer text-sm font-medium">2026년 단가 적용</p>
       </div>
 
       {/* Content */}
@@ -625,11 +629,9 @@ export default function OvertimeCalc() {
         </div>
 
         {/* Section 3: Result */}
-        <div className="bg-surface-container-highest rounded-2xl p-6 shadow-sm border border-outline-variant/20 mt-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-40 h-40 bg-primary rounded-full mix-blend-overlay filter blur-3xl opacity-10 drop-shadow-2xl"></div>
-          
+        <div className="bg-surface-container-highest rounded-2xl p-5 sm:p-6 shadow-md border border-outline-variant/10 mt-6 relative">
           <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
               <h3 className="text-sm font-bold text-on-surface-variant flex items-center gap-1.5"><span className="material-symbols-outlined text-[18px]">receipt_long</span>총 실지급 예상액 (세전)</h3>
             </div>
             

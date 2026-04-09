@@ -41,7 +41,7 @@ function DonutChart({ data, labelKey, valueKey, title }: { data: any[]; labelKey
   const gradient = slices.map(s => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ');
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col sm:flex-row items-center gap-6">
       <div style={{ width: 150, height: 150, borderRadius: '50%', background: `conic-gradient(${gradient})`, position: 'relative', flexShrink: 0 }}>
         <div style={{ position: 'absolute', inset: '28%', borderRadius: '50%', backgroundColor: 'var(--md-sys-color-surface-container-lowest, #1a1a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="text-center">
@@ -50,7 +50,7 @@ function DonutChart({ data, labelKey, valueKey, title }: { data: any[]; labelKey
           </div>
         </div>
       </div>
-      <div className="flex-1 space-y-1 max-h-[170px] overflow-y-auto pr-2">
+      <div className="flex-1 w-full space-y-1 max-h-[170px] overflow-y-auto pr-2">
         {slices.filter(s => s.pct >= 0.5).map(s => (
           <div key={s.label} className="flex items-center gap-2 text-xs">
             <span style={{ backgroundColor: s.color, width: 8, height: 8, borderRadius: 2, flexShrink: 0 }} />
@@ -376,7 +376,11 @@ export default function FireAnalysis() {
       </div>
 
       {/* 시도별 화재 발생 테이블 */}
-      {sidoData.length > 0 && (
+      {loading ? (
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+          <Skeleton />
+        </section>
+      ) : sidoData.length > 0 && (
         <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
           <div className="p-6 border-b border-outline-variant/10">
             <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest flex items-center gap-2">

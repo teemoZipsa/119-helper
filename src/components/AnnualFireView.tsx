@@ -204,21 +204,23 @@ export default function AnnualFireView() {
                 <span className="material-symbols-outlined text-secondary text-lg">calendar_month</span>
                 월별 화재 발생 추이
               </h3>
-              <div className="flex items-end gap-1.5 h-40">
-                {data.byMonth.map((item, i) => (
-                  <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[9px] font-bold text-on-surface-variant">{item.count > 0 ? item.count.toLocaleString() : ''}</span>
-                    <div
-                      className="w-full rounded-t-lg transition-all duration-500"
-                      style={{
-                        height: `${Math.max((item.count / maxMonth) * 100, 2)}%`,
-                        backgroundColor: COLORS[i % COLORS.length],
-                        opacity: item.count > 0 ? 1 : 0.2,
-                      }}
-                    />
-                    <span className="text-[9px] text-on-surface-variant font-medium">{item.month}</span>
-                  </div>
-                ))}
+              <div className="overflow-x-auto custom-scrollbar pb-2">
+                <div className="flex items-end gap-1.5 h-40 min-w-[300px]">
+                  {data.byMonth.map((item, i) => (
+                    <div key={item.month} className="flex-1 flex flex-col items-center gap-1">
+                      <span className="text-[9px] font-bold text-on-surface-variant">{item.count > 0 ? item.count.toLocaleString() : ''}</span>
+                      <div
+                        className="w-full rounded-t-lg transition-all duration-500"
+                        style={{
+                          height: `${Math.max((item.count / maxMonth) * 100, 2)}%`,
+                          backgroundColor: COLORS[i % COLORS.length],
+                          opacity: item.count > 0 ? 1 : 0.2,
+                        }}
+                      />
+                      <span className="text-[9px] text-on-surface-variant font-medium">{item.month}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -314,7 +316,7 @@ function DonutChart({ data }: { data: { name: string; count: number }[] }) {
   const r = 70, cx = 90, cy = 90, inner = 40;
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col sm:flex-row items-center gap-6">
       <svg viewBox="0 0 180 180" className="w-36 h-36 shrink-0">
         {slices.map(s => {
           if (s.pct < 0.001) return null;
@@ -331,7 +333,7 @@ function DonutChart({ data }: { data: { name: string; count: number }[] }) {
         <text x={cx} y={cy - 4} textAnchor="middle" className="fill-on-surface text-lg font-extrabold">{total.toLocaleString()}</text>
         <text x={cx} y={cy + 12} textAnchor="middle" className="fill-on-surface-variant text-[9px] font-medium">총 건수</text>
       </svg>
-      <div className="flex-1 space-y-1.5">
+      <div className="flex-1 w-full space-y-1.5 max-h-[160px] overflow-y-auto">
         {chartData.map((d, i) => (
           <div key={d.name} className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />

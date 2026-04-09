@@ -107,7 +107,7 @@ function DonutChart({ data, labelKey, valueKey }: { data: any[]; labelKey: strin
   const gradient = slices.map(s => `${s.color} ${s.start}% ${s.start + s.pct}%`).join(', ');
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col sm:flex-row items-center gap-6">
       <div
         style={{
           width: 160, height: 160, borderRadius: '50%',
@@ -126,7 +126,7 @@ function DonutChart({ data, labelKey, valueKey }: { data: any[]; labelKey: strin
           </div>
         </div>
       </div>
-      <div className="flex-1 space-y-1.5 max-h-[180px] overflow-y-auto pr-2">
+      <div className="flex-1 w-full space-y-1.5 max-h-[180px] overflow-y-auto pr-2">
         {slices.filter(s => s.pct >= 1).map(s => (
           <div key={s.label} className="flex items-center gap-2 text-xs">
             <span style={{ backgroundColor: s.color, width: 10, height: 10, borderRadius: 2, flexShrink: 0 }} />
@@ -182,10 +182,24 @@ function EmptyState({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+/* ─── 로딩 스켈레톤 ─── */
+function Skeleton() {
+  return (
+    <div className="space-y-2 animate-pulse w-full">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="w-16 h-4 bg-surface-container rounded" />
+          <div className="flex-1 h-6 bg-surface-container rounded" style={{ width: `${80 - i * 12}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ═════════════════════════════════════════════
    대응시간 분석 카드
    ═════════════════════════════════════════════ */
-function ResponseTimeSection({ data }: { data: ActivityDetailItem[] }) {
+function ResponseTimeSection({ data, loading }: { data: ActivityDetailItem[], loading?: boolean }) {
   if (data.length === 0) return <EmptyState icon="timer" text="대응시간 데이터 없음" />;
 
   // 대응시간 계산 (현장도착시:분)
@@ -283,7 +297,7 @@ function ResponseTimeSection({ data }: { data: ActivityDetailItem[] }) {
             <span className="material-symbols-outlined text-base text-blue-400">schedule</span>
             대응시간 분포
           </h3>
-          <HBarChart data={timeHistogram} labelKey="label" valueKey="count" />
+          {loading ? <Skeleton /> : <HBarChart data={timeHistogram} labelKey="label" valueKey="count" />}
         </section>
 
         {/* 거리 히스토그램 */}
@@ -292,7 +306,7 @@ function ResponseTimeSection({ data }: { data: ActivityDetailItem[] }) {
             <span className="material-symbols-outlined text-base text-amber-400">map</span>
             현장 거리 분포
           </h3>
-          <HBarChart data={distHistogram} labelKey="label" valueKey="count" />
+          {loading ? <Skeleton /> : <HBarChart data={distHistogram} labelKey="label" valueKey="count" />}
         </section>
       </div>
 
@@ -340,8 +354,8 @@ function ResponseTimeSection({ data }: { data: ActivityDetailItem[] }) {
    환자 이송/처치 분석 섹션
    ═════════════════════════════════════════════ */
 function PatientSection({
-  transfers, firstAids
-}: { transfers: TransferItem[]; firstAids: FirstAidItem[] }) {
+  transfers, firstAids, loading
+}: { transfers: TransferItem[]; firstAids: FirstAidItem[]; loading?: boolean }) {
   // 발생유형별 집계
   const typeMap = new Map<string, number>();
   transfers.forEach(t => {
@@ -434,45 +448,39 @@ function PatientSection({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 발생유형별 */}
-        {hasTransfers && (
-          <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
-            <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-red-400">emergency</span>
-              발생유형별 이송
-            </h3>
-            <DonutChart data={typeData.slice(0, 10)} labelKey="label" valueKey="count" />
-          </section>
-        )}
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-red-400">emergency</span>
+            발생유형별 이송
+          </h3>
+          {loading ? <Skeleton /> : hasTransfers ? <DonutChart data={typeData.slice(0, 10)} labelKey="label" valueKey="count" /> : <EmptyState icon="donut_large" text="데이터 없음" />}
+        </section>
 
         {/* 사고장소별 */}
-        {hasTransfers && (
-          <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
-            <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-orange-400">location_on</span>
-              사고장소별 이송
-            </h3>
-            <HBarChart data={placeData.slice(0, 10)} labelKey="label" valueKey="count" />
-          </section>
-        )}
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-orange-400">location_on</span>
+            사고장소별 이송
+          </h3>
+          {loading ? <Skeleton /> : hasTransfers ? <HBarChart data={placeData.slice(0, 10)} labelKey="label" valueKey="count" /> : <EmptyState icon="bar_chart" text="데이터 없음" />}
+        </section>
 
         {/* 연령대 분포 */}
-        {hasAids && ageData.length > 0 && (
-          <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
-            <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-blue-400">group</span>
-              환자 연령대 분포
-            </h3>
-            <HBarChart data={ageData} labelKey="label" valueKey="count" />
-          </section>
-        )}
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-blue-400">group</span>
+            환자 연령대 분포
+          </h3>
+          {loading ? <Skeleton /> : hasAids && ageData.length > 0 ? <HBarChart data={ageData} labelKey="label" valueKey="count" /> : <EmptyState icon="group" text="데이터 없음" />}
+        </section>
 
         {/* 성별 + 처치코드 */}
-        {hasAids && (
-          <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
-            <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-green-400">medical_services</span>
-              성별 분포 & 주요 처치코드
-            </h3>
+        <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-green-400">medical_services</span>
+            성별 분포 & 주요 처치코드
+          </h3>
+          {loading ? <Skeleton /> : hasAids ? (
             <div className="space-y-4">
               {/* 성별 바 */}
               <div className="flex gap-2">
@@ -502,8 +510,8 @@ function PatientSection({
                 </div>
               </div>
             </div>
-          </section>
-        )}
+          ) : <EmptyState icon="medical_services" text="데이터 없음" />}
+        </section>
       </div>
     </div>
   );
@@ -893,7 +901,11 @@ export default function EmergencyAnalysis() {
           </section>
 
           {/* 구급차량 현황 */}
-          {vehicles.length > 0 && (
+          {loading ? (
+            <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
+              <LoadingSkeleton />
+            </section>
+          ) : vehicles.length > 0 && (
             <section className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6">
               <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-base text-red-400">fire_truck</span>

@@ -101,6 +101,7 @@ export default function ERDashboard({ city }: ERViewProps) {
   }
 
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticePopupId, setNoticePopupId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -118,39 +119,7 @@ export default function ERDashboard({ city }: ERViewProps) {
         </button>
       </div>
 
-      {/* 긴급 알림 Ticker — 통계 카드 위에 배치 + 접기/열기 */}
-      {messages.length > 0 && (
-        <div className="bg-error/10 border border-error/30 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setNoticeOpen(!noticeOpen)}
-            className="w-full p-4 flex items-center gap-4 hover:bg-error/5 transition-colors"
-          >
-            <div className="bg-error/20 p-2 rounded-full">
-              <span className="material-symbols-outlined text-error text-xl block">campaign</span>
-            </div>
-            <h3 className="text-error font-extrabold flex-1 text-left">
-              응급실 긴급 공지사항
-              <span className="ml-2 text-xs font-mono text-error/60">{messages.length}건</span>
-            </h3>
-            <span className={`material-symbols-outlined text-error/60 transition-transform duration-200 ${noticeOpen ? 'rotate-180' : ''}`}>
-              expand_more
-            </span>
-          </button>
-          {noticeOpen && (
-            <div className="px-4 pb-4 space-y-3 max-h-48 overflow-y-auto custom-scrollbar">
-              {messages.map((msg, i) => (
-                <div key={i} className="text-sm bg-surface-container-lowest/50 p-3 rounded-lg border border-outline-variant/5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-extrabold text-on-surface text-base">{msg.dutyName}</span>
-                    <span className="px-2 py-0.5 bg-error/20 text-error rounded text-[10px] font-bold">{getMsgTypeLabel(msg)}</span>
-                  </div>
-                  <p className="text-on-surface-variant font-medium leading-relaxed">{msg.symBlkMsg || msg.symOutCon || msg.symTypMain || '상세 내용 없음'}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -204,12 +173,27 @@ export default function ERDashboard({ city }: ERViewProps) {
 
                 return (
                   <React.Fragment key={er.phpid || i}>
-                    <tr onClick={() => setExpandedRow(isExpanded ? null : er.phpid)} className="hover:bg-surface-container/30 transition-colors cursor-pointer group">
+                    <tr className="hover:bg-surface-container/30 transition-colors group">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">{er.dutyName}</p>
+                          <p
+                            onClick={() => setNoticePopupId(er.dutyName)}
+                            className="text-sm font-bold text-on-surface hover:text-primary hover:underline transition-colors cursor-pointer"
+                            title="공지사항 보기"
+                          >
+                            {er.dutyName}
+                          </p>
+                          {messages.filter(m => m.dutyName === er.dutyName).length > 0 && (
+                            <span className="material-symbols-outlined text-[14px] text-error animate-pulse" title="긴급 공지사항 있음">
+                              campaign
+                            </span>
+                          )}
                           {severe && (
-                            <span className="material-symbols-outlined text-[14px] text-primary" title="중증질환 수용정보 클릭하여 확인">
+                            <span 
+                              onClick={() => setExpandedRow(isExpanded ? null : er.phpid)}
+                              className="material-symbols-outlined text-[18px] text-primary cursor-pointer hover:bg-primary/10 rounded-full p-0.5 ml-1 transition-colors" 
+                              title="중증질환 수용정보 확인"
+                            >
                               {isExpanded ? 'expand_less' : 'expand_more'}
                             </span>
                           )}
@@ -242,7 +226,7 @@ export default function ERDashboard({ city }: ERViewProps) {
                       </td>
                       <td className="px-3 py-3 text-center text-sm text-on-surface-variant font-mono">{parseInt(er.hvgc) || 0}</td>
                       <td className="px-4 py-3 text-right">
-                        <a href={`tel:${er.dutyTel3}`} onClick={(e) => e.stopPropagation()} className="text-sm text-primary font-mono hover:underline">{er.dutyTel3}</a>
+                        <a href={`tel:${er.dutyTel3}`} className="text-sm text-primary font-mono hover:underline">{er.dutyTel3}</a>
                       </td>
                     </tr>
                     {isExpanded && (
@@ -251,8 +235,9 @@ export default function ERDashboard({ city }: ERViewProps) {
                           <div className="flex flex-col gap-3">
                             <div className="flex items-center gap-2">
                               <span className="material-symbols-outlined text-primary text-sm">local_hospital</span>
-                              <span className="text-xs font-bold text-on-surface uppercase tracking-widest">중증질환자 수용 가능 현황</span>
+                              <span className="text-xs font-bold text-on-surface uppercase tracking-widest">수용 가능 현황 및 공지사항</span>
                             </div>
+                            
                             {severe ? (
                               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2 mt-1">
                                 {Object.entries(severe)
@@ -320,6 +305,46 @@ export default function ERDashboard({ city }: ERViewProps) {
           </table>
         )}
       </div>
+
+      {/* 팝업 모달 */}
+      {noticePopupId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setNoticePopupId(null)}>
+          <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">local_hospital</span>
+                {noticePopupId}
+              </h3>
+              <button onClick={() => setNoticePopupId(null)} className="text-on-surface-variant hover:text-on-surface transition-colors bg-surface-container rounded-full p-1">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+              <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
+                <span className="material-symbols-outlined text-base text-error">campaign</span>
+                긴급 공지사항
+              </h4>
+              {messages.filter(m => m.dutyName === noticePopupId).length > 0 ? (
+                messages.filter(m => m.dutyName === noticePopupId).map((msg, idx) => (
+                  <div key={idx} className="bg-error/10 border border-error/30 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                       <span className="px-2 py-1 bg-error/20 text-error rounded text-[10px] font-bold">{getMsgTypeLabel(msg)}</span>
+                    </div>
+                    <p className="text-sm text-error/90 font-medium leading-relaxed whitespace-pre-wrap">
+                      {msg.symBlkMsg || msg.symOutCon || msg.symTypMain || '상세 내용 없음'}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 bg-surface-container/30 rounded-xl text-on-surface-variant">
+                   <span className="material-symbols-outlined text-3xl mb-2 opacity-50 block">check_circle</span>
+                   발령된 특이 공지사항이 없습니다.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

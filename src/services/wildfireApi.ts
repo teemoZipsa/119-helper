@@ -15,14 +15,21 @@ let cachedWildfires: WildfireItem[] | null = null;
 let lastFetchTime = 0;
 const CACHE_TTL = 3 * 60 * 1000; // 3분 캐시
 
-export async function fetchWildfires(numOfRows = '200', pageNo = '1', forceRefresh = false): Promise<WildfireItem[]> {
-  if (!forceRefresh && cachedWildfires && Date.now() - lastFetchTime < CACHE_TTL) {
+export async function fetchWildfires(numOfRows = '200', pageNo = '1', forceRefresh = false, retryCount = 0): Promise<WildfireItem[]> {
+  if (!forceRefresh && cachedWildfires && cachedWildfires.length > 0 && Date.now() - lastFetchTime < CACHE_TTL) {
     return cachedWildfires;
   }
 
   try {
     const data = await apiFetch<{ body: any[], totalCount?: number }>('/api/wildfire', { numOfRows, pageNo });
-    if (!data || !data.body) return [];
+    if (!data || !data.body || data.body.length === 0) {
+      if (retryCount < 3) {
+        console.warn(`산불 데이터 빈 응답. 1초 뒤 재시도... (${retryCount + 1}/3)`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return fetchWildfires(numOfRows, pageNo, forceRefresh, retryCount + 1);
+      }
+      return cachedWildfires || [];
+    }
 
     const items = data.body.map((item: any) => {
       const extinguished = item.EXTNGS_CMPTN_DT || null;
@@ -43,6 +50,11 @@ export async function fetchWildfires(numOfRows = '200', pageNo = '1', forceRefre
     return items;
   } catch (err) {
     console.error('산불 데이터 조회 실패:', err);
+    if (retryCount < 3) {
+      console.warn(`산불 데이터 조회 재시도 중... (${retryCount + 1}/3)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchWildfires(numOfRows, pageNo, forceRefresh, retryCount + 1);
+    }
     return cachedWildfires || [];
   }
 }
