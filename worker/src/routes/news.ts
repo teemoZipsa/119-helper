@@ -33,7 +33,9 @@ export async function prefetchNews(env: any) {
 }
 
 async function getNewsWithCache(type: string, query: string, env: any, forceFetch: boolean): Promise<Response> {
-  const cacheKey = `news:${type}:${query}`;
+  // 캐시 키 버전을 v4 등으로 올려서 이전 데이터(이미지 없는 데이터) 캐시를 즉시 무효화
+  const CACHE_PREFIX = 'news:v4:';
+  const cacheKey = `${CACHE_PREFIX}${type}:${query}`;
   const kv = env.NEWS_CACHE; // binding from wrangler.toml
 
   // 1. KV 캐시 확인
@@ -62,11 +64,11 @@ async function getNewsWithCache(type: string, query: string, env: any, forceFetc
         try {
           xmlText = await fetchNaverAsXml(query, env.NAVER_CLIENT_ID, env.NAVER_CLIENT_SECRET);
         } catch (naverErr: any) {
-          console.warn(`[news] Naver API failed: ${naverErr?.message}. Falling back to Google RSS.`);
-          xmlText = await fetchGoogleFallback(query);
+          console.warn(`[news] Naver API failed: ${naverErr?.message}. Falling back to Bing News.`);
+          xmlText = await fetchBingNewsFallback(query);
         }
       } else {
-        xmlText = await fetchGoogleFallback(query);
+        xmlText = await fetchBingNewsFallback(query);
       }
     }
 
@@ -104,14 +106,14 @@ async function getNewsWithCache(type: string, query: string, env: any, forceFetc
   }
 }
 
-async function fetchGoogleFallback(query: string): Promise<string> {
+async function fetchBingNewsFallback(query: string): Promise<string> {
   try {
-    const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-    return await fetchRss(googleUrl);
-  } catch (err: any) {
-    console.warn(`[news] Google fetch failed:`, err.message, `trying Bing fallback...`);
     const bingUrl = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`;
     return await fetchRss(bingUrl);
+  } catch (err: any) {
+    console.warn(`[news] Bing fetch failed:`, err.message, `trying Google fallback...`);
+    const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+    return await fetchRss(googleUrl);
   }
 }
 
@@ -174,7 +176,18 @@ async function enhanceRssWithImages(xml: string): Promise<string> {
   const items = xml.match(itemRegex);
   if (!items) return xml;
 
-  const enhancedItems = await Promise.all(items.map(async (itemXml) => {
+  const enhancedItems = await Promise.all(items.map(async (itemXml, index) => {
+    // 1. Bing News의 <News:Image> 태그가 이미 존재하면 즉시 사용
+    const bingImageMatch = itemXml.match(/<News:Image>([^<]+)<\/News:Image>/i);
+    if (bingImageMatch) {
+       return itemXml.replace(/<\/item>/i, `  <imageUrl><![CDATA[${bingImageMatch[1]}]]></imageUrl>\n    </item>`);
+    }
+
+    // Cloudflare Workers has a strict limit of 50 subrequests per invocation (on the free plan).
+    // RSS feeds might contain up to 100 items. We limit image fetching to the top 15 items
+    // which protects the worker from crashing with HTTP 500 Subrequest limit error.
+    if (index >= 15) return itemXml;
+
     // originallink가 있으면 그것을, 없으면 link를 사용 (네이버용)
     const originalLinkMatch = itemXml.match(/<originallink[^>]*>([^<]+)<\/originallink>/i);
     const linkMatch = itemXml.match(/<link[^>]*>([^<]+)<\/link>/i);
