@@ -33,7 +33,9 @@ export async function prefetchNews(env: any) {
 }
 
 async function getNewsWithCache(type: string, query: string, env: any, forceFetch: boolean): Promise<Response> {
-  const cacheKey = `news:${type}:${query}`;
+  // 캐시 키 버전을 v4 등으로 올려서 이전 데이터(이미지 없는 데이터) 캐시를 즉시 무효화
+  const CACHE_PREFIX = 'news:v5:';
+  const cacheKey = `${CACHE_PREFIX}${type}:${query}`;
   const kv = env.NEWS_CACHE; // binding from wrangler.toml
 
   // 1. KV 캐시 확인
@@ -62,12 +64,19 @@ async function getNewsWithCache(type: string, query: string, env: any, forceFetc
         try {
           xmlText = await fetchNaverAsXml(query, env.NAVER_CLIENT_ID, env.NAVER_CLIENT_SECRET);
         } catch (naverErr: any) {
-          console.warn(`[news] Naver API failed: ${naverErr?.message}. Falling back to Google RSS.`);
-          xmlText = await fetchGoogleFallback(query);
+          console.warn(`[news] Naver API failed: ${naverErr?.message}. Falling back to Bing News.`);
+          xmlText = await fetchBingNewsFallback(query);
         }
       } else {
-        xmlText = await fetchGoogleFallback(query);
+        xmlText = await fetchBingNewsFallback(query);
       }
+    }
+
+    // --- Og:Image 썸네일 병렬 추출 (모든 RSS 포맷 통합) ---
+    try {
+      xmlText = await enhanceRssWithImages(xmlText);
+    } catch (ogErr) {
+      console.warn(`[news] Og:image extraction failed, proceeding with original XML:`, ogErr);
     }
 
     // 성공 → KV 저장
@@ -97,14 +106,14 @@ async function getNewsWithCache(type: string, query: string, env: any, forceFetc
   }
 }
 
-async function fetchGoogleFallback(query: string): Promise<string> {
+async function fetchBingNewsFallback(query: string): Promise<string> {
   try {
-    const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-    return await fetchRss(googleUrl);
-  } catch (err: any) {
-    console.warn(`[news] Google fetch failed:`, err.message, `trying Bing fallback...`);
     const bingUrl = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss`;
     return await fetchRss(bingUrl);
+  } catch (err: any) {
+    console.warn(`[news] Bing fetch failed:`, err.message, `trying Google fallback...`);
+    const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+    return await fetchRss(googleUrl);
   }
 }
 
@@ -133,6 +142,93 @@ async function fetchRss(url: string): Promise<string> {
   }
 
   return text;
+}
+
+// 썸네일 URL(Og:Image)만 1.5초 내로 빠르게 훔쳐오는 스크래퍼
+async function fetchOgImage(link: string): Promise<string> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const res = await fetch(link, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache'
+      },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeout);
+    if (!res.ok) return '';
+    
+    const html = await res.text();
+    // meta og:image 추출 정규식 (줄바꿈 허용, 순서 무관)
+    const match = html.match(/<meta[^>]*?property=["']og:image["'][^>]*?content=["']([^"']+)["']/i) || 
+                  html.match(/<meta[^>]*?content=["']([^"']+)["'][^>]*?property=["']og:image["']/i) ||
+                  html.match(/<meta[^>]*?name=["']twitter:image["'][^>]*?content=["']([^"']+)["']/i);
+    return match ? match[1] : '';
+  } catch(e) {
+    return '';
+  }
+}
+
+// 생성되거나 파싱된 XML의 <item> 속 <link>들을 추적해 <imageUrl> 태그를 박아넣는 함수 (병렬 처리)
+async function enhanceRssWithImages(xml: string): Promise<string> {
+  const itemRegex = /<item>[\s\S]*?<\/item>/g;
+  const items = xml.match(itemRegex);
+  if (!items) return xml;
+
+  const enhancedItems = await Promise.all(items.map(async (itemXml, index) => {
+    // 1. Bing News의 <News:Image> 태그가 이미 존재하면 즉시 사용
+    const bingImageMatch = itemXml.match(/<News:Image>([^<]+)<\/News:Image>/i);
+    if (bingImageMatch) {
+       return itemXml.replace(/<\/item>/i, `  <imageUrl><![CDATA[${bingImageMatch[1]}]]></imageUrl>\n    </item>`);
+    }
+
+    // Cloudflare Workers has a strict limit of 50 subrequests per invocation (on the free plan).
+    // RSS feeds might contain up to 100 items. We limit image fetching to the top 15 items
+    // which protects the worker from crashing with HTTP 500 Subrequest limit error.
+    if (index >= 15) return itemXml;
+
+    // originallink가 있으면 그것을, 없으면 link를 사용 (네이버용)
+    const originalLinkMatch = itemXml.match(/<originallink[^>]*>([^<]+)<\/originallink>/i);
+    const linkMatch = itemXml.match(/<link[^>]*>([^<]+)<\/link>/i);
+    
+    let targetLink = '';
+    // Priority: If link contains naver.com, use it (extremely fast and standard). Otherwise fallback to originallink, then link.
+    const linkUrl = linkMatch ? linkMatch[1] : '';
+    const originalLinkUrl = originalLinkMatch ? originalLinkMatch[1] : '';
+    
+    if (linkUrl.includes('naver.com')) {
+      targetLink = linkUrl;
+    } else if (originalLinkUrl) {
+      targetLink = originalLinkUrl;
+    } else if (linkUrl) {
+      targetLink = linkUrl;
+    }
+    
+    if (!targetLink) return itemXml;
+    targetLink = targetLink.replace(/<!\[CDATA\[(.*?)\]\]>/, '$1').trim();
+    
+    const imageUrl = await fetchOgImage(targetLink);
+    
+    if (imageUrl) {
+      // </item> 직전에 imageUrl 삽입
+      return itemXml.replace(/<\/item>/i, `  <imageUrl><![CDATA[${imageUrl}]]></imageUrl>\n    </item>`);
+    }
+    return itemXml;
+  }));
+
+  // 원본 XML 문자열 대치
+  let newXml = xml;
+  // 순차 대치 (items와 enhancedItems 순서/길이가 보장됨)
+  for(let i = 0; i < items.length; i++) {
+    newXml = newXml.replace(items[i], enhancedItems[i]);
+  }
+  
+  return newXml;
 }
 
 // 네이버 뉴스 검색 JSON 결과를 RSS XML 포맷으로 변환
@@ -170,6 +266,7 @@ async function fetchNaverAsXml(query: string, clientId: string, clientSecret: st
     // title/desc contains <b>keyword</b> from Naver
     xml += `    <item>\n`;
     xml += `      <title><![CDATA[${item.title}]]></title>\n`;
+    xml += `      <originallink><![CDATA[${item.originallink}]]></originallink>\n`; // og 추출용 추가
     xml += `      <link><![CDATA[${item.link}]]></link>\n`;
     xml += `      <description><![CDATA[${item.description}]]></description>\n`;
     xml += `      <pubDate>${item.pubDate}</pubDate>\n`;
