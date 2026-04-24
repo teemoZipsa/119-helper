@@ -1,0 +1,13 @@
+node_modules/
+.venv/
+env/
+myenv/
+dist/
+build/
+.git/
+temp/
+coverage/
+*.log
+.next/
+out/
+worker/node_modules/

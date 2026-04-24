@@ -1,0 +1,50 @@
+wing: 119_helper
+rooms:
+- name: data
+  description: Files from data/
+  keywords:
+  - data
+  - data
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: public
+  description: Files from public/
+  keywords:
+  - public
+  - public
+- name: scripts
+  description: Files from scripts/
+  keywords:
+  - scripts
+  - scripts
+- name: src
+  description: Files from src/
+  keywords:
+  - src
+  - src
+- name: worker
+  description: Files from worker/
+  keywords:
+  - worker
+  - worker
+- name: design
+  description: Files from assets/
+  keywords:
+  - design
+  - assets
+- name: frontend
+  description: Files from components/
+  keywords:
+  - frontend
+  - components
+- name: backend
+  description: Files from services/
+  keywords:
+  - backend
+  - services
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []
