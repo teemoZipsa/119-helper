@@ -68,29 +68,38 @@ const ALL_QUICK_TOOLS: QuickToolDef[] = [
 const DEFAULT_TOOLS = ['facility_hydrants', 'facility_towers', 'checklist', 'calc_water', 'calc_hazmat', 'law_defense'];
 
 const WeatherParticles = React.memo(({ type }: { type: string }) => {
-  if (!type || type === '없음') return null;
-  
-  const isRain = type.includes('비') || type.includes('소나기') || type.includes('빗방울');
-  const isSnow = type.includes('눈');
-  
-  if (!isRain && !isSnow) return null;
-
-  const count = isRain ? 20 : 30; // 비는 20줄기, 눈은 30송이 정도
   const particleStyles = React.useMemo(() => {
-    return Array.from({ length: count }).map(() => ({
-      left: Math.random() * 100 + '%',
-      delay: Math.random() * 2 + 's',
-      duration: isRain ? (0.5 + Math.random() * 0.3) + 's' : (2 + Math.random() * 3) + 's',
-      size: isSnow ? (3 + Math.random() * 4) + 'px' : undefined,
-      opacity: 0.3 + Math.random() * 0.5
+    if (!type || type === '없음') return null;
+
+    const isRain = type.includes('비') || type.includes('소나기') || type.includes('빗방울');
+    const isSnow = type.includes('눈');
+
+    if (!isRain && !isSnow) return null;
+
+    const count = isRain ? 20 : 30;
+    // seed 기반으로 안정적인 난수를 생성하여 렌더 순수성을 보장합니다.
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed + 1) * 10000;
+      return x - Math.floor(x);
+    };
+
+    return Array.from({ length: count }).map((_, i) => ({
+      left: seededRandom(i * 7 + 1) * 100 + '%',
+      delay: seededRandom(i * 7 + 2) * 2 + 's',
+      duration: isRain ? (0.5 + seededRandom(i * 7 + 3) * 0.3) + 's' : (2 + seededRandom(i * 7 + 3) * 3) + 's',
+      size: isSnow ? (3 + seededRandom(i * 7 + 4) * 4) + 'px' : undefined,
+      opacity: 0.3 + seededRandom(i * 7 + 5) * 0.5,
+      isRain,
     }));
-  }, [count, isRain, isSnow]);
+  }, [type]);
+
+  if (!particleStyles) return null;
 
   const particles = particleStyles.map((style, i) => {
     return (
       <div 
         key={i} 
-        className={isRain ? 'weather-particle-rain' : 'weather-particle-snow'} 
+        className={style.isRain ? 'weather-particle-rain' : 'weather-particle-snow'} 
         style={{
           left: style.left,
           animationDelay: style.delay,

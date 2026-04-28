@@ -349,7 +349,7 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
       try {
         const savedShift = localStorage.getItem('119helper-shift-setting');
         if (savedShift) setShiftSetting(JSON.parse(savedShift));
-      } catch (e) {}
+      } catch { /* JSON 파싱 실패 시 기본값 유지 */ }
 
       setTab('general');
     }

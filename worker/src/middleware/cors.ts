@@ -111,6 +111,7 @@ export function sanitizeStringParam(url: URL, key: string, maxLen = 100): string
   // 제어 문자, 스크립트 태그 등 제거
   return raw
     .replace(/[<>'";\\/]/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x1f]/g, '')
     .slice(0, maxLen)
     .trim() || null;

@@ -15,23 +15,28 @@ export default function DonutChart({ data, size = 250, innerRadius = 60 }: Donut
   if (!data || data.length === 0) return null;
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  let currentAngle = 0;
 
   // 간단한 색상 팔레트
   const colors = ['#dc2626', '#ea580c', '#eab308', '#16a34a', '#2563eb'];
+
+  // 누적 각도를 미리 계산하여 렌더 중 변수 재할당을 방지
+  const segments = data.reduce<{ startAngle: number; endAngle: number; item: ChartDataItem; index: number }[]>((acc, item, index) => {
+    const prevEnd = acc.length > 0 ? acc[acc.length - 1].endAngle : 0;
+    const angle = (item.value / total) * 360;
+    acc.push({ startAngle: prevEnd, endAngle: prevEnd + angle, item, index });
+    return acc;
+  }, []);
 
   return (
     <div className="flex flex-col items-center">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <g transform={`translate(${size / 2}, ${size / 2})`}>
-          {data.map((item, index) => {
-            const angle = (item.value / total) * 360;
-            const startAngle = currentAngle;
-            currentAngle += angle;
+          {segments.map(({ startAngle, endAngle, item, index }) => {
+            const angle = endAngle - startAngle;
 
             // 라디안 변환
             const startRad = (startAngle - 90) * (Math.PI / 180);
-            const endRad = (currentAngle - 90) * (Math.PI / 180);
+            const endRad = (endAngle - 90) * (Math.PI / 180);
 
             const r = size / 2;
             const x1 = Math.cos(startRad) * r;

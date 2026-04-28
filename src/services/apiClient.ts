@@ -152,7 +152,8 @@ export async function fetchTsunamiShelters() {
 
 // ═══════ 민방위대피시설 ═══════
 
-export async function fetchCivilShelters(_ctprvnNm: string, _sgnNm?: string, _numOfRows = '200', _pageNo = '1') {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function fetchCivilShelters(_ctprvnNm: string, _sgnNm?: string) {
   // 민방위 데이터 또한 공공데이터 포털의 SSL 차단 및 필터링 미지원 이슈로 정적 JSON을 사용합니다.
   return civilData;
 }

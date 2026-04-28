@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-
+/* eslint-disable react-refresh/only-export-components */
 const WARN_THRESHOLD = 0.33;
 const DANGER_THRESHOLD = 0.1;
 

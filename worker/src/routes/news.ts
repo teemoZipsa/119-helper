@@ -169,7 +169,7 @@ async function fetchOgImage(link: string): Promise<string> {
                   html.match(/<meta[^>]*?content=["']([^"']+)["'][^>]*?property=["']og:image["']/i) ||
                   html.match(/<meta[^>]*?name=["']twitter:image["'][^>]*?content=["']([^"']+)["']/i);
     return match ? match[1] : '';
-  } catch(e) {
+  } catch {
     return '';
   }
 }

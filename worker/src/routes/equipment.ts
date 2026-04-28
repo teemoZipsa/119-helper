@@ -15,17 +15,16 @@ export async function handleEquipment(request: Request, env: Env): Promise<Respo
 
   try {
     let targetUrl: string;
-    let requiredParams: string[] = [];
 
     // 1. 소방장비 (차량 등) 인증 정보 조회
     if (path === '/cert') {
       targetUrl = 'http://apis.data.go.kr/B552486/opnFeqpmCtfcn/opnFeqpmCtfcn01';
-      requiredParams = ['pageNo', 'numOfRows', 'fromAprv', 'toAprv']; // 필수 파라미터
+      // 필수 파라미터: pageNo, numOfRows, fromAprv, toAprv
     }
     // 2. 소화기 정비번호 발급현황
     else if (path === '/extinguisher') {
       targetUrl = 'http://apis.data.go.kr/B552486/opnGcExsrImpmAply/opnGcExsrImpmAply01';
-      requiredParams = ['pageNo', 'numOfRows', 'exsrImpmYr', 'exsrImpmNo']; // 필수 파라미터
+      // 필수 파라미터: pageNo, numOfRows, exsrImpmYr, exsrImpmNo
     }
     else {
       return errorResponse('Not found API path under equipment.', request, 404);
@@ -61,7 +60,7 @@ export async function handleEquipment(request: Request, env: Env): Promise<Respo
       let data: any;
       try {
         data = JSON.parse(respText);
-      } catch (e) {
+      } catch {
         // 간혹 공공데이터는 에러일때 XML 뱉음
         if (respText.includes('<errMsg>')) {
           return errorResponse('요청 에러: API 키 또는 파라미터가 유효하지 않습니다.', request, 400);

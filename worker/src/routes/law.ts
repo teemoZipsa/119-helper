@@ -53,7 +53,7 @@ async function searchLaw(url: URL): Promise<Response> {
         'Cache-Control': 'public, max-age=3600',
       },
     });
-  } catch (e: any) {
+  } catch {
     // 법제처 직접 호출 실패 → 도메인 없음(OC 미등록) 우회:
     // 사실 법제처 공개 웹 DRF는 OC 없이도 호출 가능한 경로가 있다
     // law.go.kr의 공개 검색 API를 사용

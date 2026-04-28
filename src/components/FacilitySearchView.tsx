@@ -153,10 +153,7 @@ export default function FacilitySearchView({
       let items: any[] = [];
       const ctprvnNm = cityToCtprvn[city] || '서울특별시';
 
-      if (activeCategory === 'civil') {
-        const data = await fetchCivilShelters(ctprvnNm);
-        items = Array.isArray(data) ? data : [];
-      } else if (activeCategory === 'tsunami') {
+      if (activeCategory === 'tsunami') {
         const rawItems = await fetchTsunamiShelters();
         
         items = rawItems.filter((it: any) => {
@@ -331,7 +328,7 @@ export default function FacilitySearchView({
       
       // 마커 아이콘 설정 (기본은 파란색, 타입에 따라 다르게)
       let imageSrc = "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png"; // 기본 별 마커 설정
-      let imageSize = new window.kakao.maps.Size(24, 35);
+      const imageSize = new window.kakao.maps.Size(24, 35);
       
       if (fac.category === 'restrooms') {
         const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#1e88e5"><path d="M12 2c-3.3 0-6 2.7-6 6v3h2V8c0-2.2 1.8-4 4-4s4 1.8 4 4v3h2V8c0-3.3-2.7-6-6-6zm-1 14h2v6h-2zM8 12c-1.1 0-2 .9-2 2v6h2v-6h4v6h2v-6c0-1.1-.9-2-2-2H8z"/></svg>`;

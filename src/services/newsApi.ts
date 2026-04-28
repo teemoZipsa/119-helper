@@ -55,11 +55,11 @@ async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boo
                    .replace(/&#39;|&apos;/gi, "'")
                    .trim();
         
-        let pubDateStr = item.getElementsByTagName('pubDate')[0]?.textContent || 
+        const pubDateStr = item.getElementsByTagName('pubDate')[0]?.textContent || 
                          item.getElementsByTagName('dc:date')[0]?.textContent || 
                          item.getElementsByTagName('date')[0]?.textContent || '';
         
-        let feedSource = item.getElementsByTagName('source')[0]?.textContent || '';
+        const feedSource = item.getElementsByTagName('source')[0]?.textContent || '';
         let actualSource = sourceName;
         if (!isOfficial) {
           actualSource = feedSource || sourceName;
@@ -221,7 +221,7 @@ export async function fetchWeatherAlerts(city?: string, forceRefresh = false): P
     }
     alertCache[cacheKey] = { data: finalResult, timestamp: Date.now() };
     return finalResult;
-  } catch (error) {
+  } catch {
     return alertCache[cacheKey]?.data || null;
   }
 }

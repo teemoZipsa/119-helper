@@ -4,12 +4,12 @@
  * GET /api/tsunami-shelter
  */
 
-const BASE = 'https://www.safetydata.go.kr';
+// 기본 도메인: https://www.safetydata.go.kr
 const DEFAULT_KEY = '5D5834I0Q3N1GT96'; // 사용자가 제공한 기본키
 
 export async function handleTsunamiShelter(url: URL, apiKey?: string): Promise<{ data: unknown; cacheTtl: number }> {
   const serviceKey = apiKey || DEFAULT_KEY;
-  const ctprvnNm = url.searchParams.get('ctprvnNm') || '';
+  // ctprvnNm 필터링은 DSSP-IF-10944에서 미지원하여 제거됨
   const numOfRows = url.searchParams.get('numOfRows') || '200'; // 1000개 요청 시 정부 서버 지연이 심해 200개로 축소
   const pageNo = url.searchParams.get('pageNo') || '1';
 

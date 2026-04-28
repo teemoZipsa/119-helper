@@ -41,7 +41,7 @@ export const getShiftForDate = (targetDateStr: string, setting: ShiftSetting): S
     const index = ((diffInDays + baseIndex) % cycleLength + cycleLength) % cycleLength;
     
     return SHIFT_CYCLE_DANGBIBI[index];
-  } catch (error) {
+  } catch {
     return null;
   }
 };

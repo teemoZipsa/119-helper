@@ -13,6 +13,7 @@ const RANK_DATA = [
 
 export type ShiftId = 'FIRE' | 'DAY' | 'NIGHT';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const SHIFT_TYPES: Record<ShiftId, { id: ShiftId; label: string; hours: number; hasNight: boolean; color: string }> = {
   FIRE: { id: 'FIRE', label: '당번', hours: 24, hasNight: true, color: 'bg-errorContainer text-onErrorContainer border-error/50' },
   DAY: { id: 'DAY', label: '주간', hours: 9, hasNight: false, color: 'bg-primaryContainer text-onPrimaryContainer border-primary/50' },
