@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
 import KakaoMap from './KakaoMap';
@@ -26,6 +26,14 @@ export default function FacilityList({
   const [filterDistrict, setFilterDistrict] = useState('전체');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  // 도시나 카테고리가 변경될 때 필터 및 상태 초기화
+  useEffect(() => {
+    setFilterDistrict('전체');
+    setSearch('');
+    setPage(1);
+    setSelectedId(null);
+  }, [city, typeLabel]);
 
   // 분할 도시 여부 판단
   const isSplit = !!cityIndex && !!onDistrictChange;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchFireInfo } from '../services/apiClient';
+import { fetchFireInfo, isStaleDataError } from '../services/apiClient';
 
 /* ─── 색상 팔레트 ─── */
 const PALETTE = [
@@ -143,6 +143,7 @@ export default function FireAnalysis() {
   const [selectedYear, setSelectedYear] = useState(years[1] || years[0]); // 작년 기본
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   // 데이터 상태
   const [summary, setSummary] = useState({ total: 0, death: 0, injury: 0, propertyDmg: 0, selfExtinguish: 0, falseReport: 0 });
@@ -152,33 +153,52 @@ export default function FireAnalysis() {
   const [buildingData, setBuildingData] = useState<any[]>([]);
   const [casualtyData, setCasualtyData] = useState<any[]>([]);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setApiError(null);
     const range = getDateRange(selectedYear);
 
     try {
+      setWarning(null);
       const results = await Promise.allSettled([
-        fetchFireInfo('sido-summary', range),   // 0: 시도단위 화재발생현황
-        fetchFireInfo('cause', range),          // 1: 발화요인별
-        fetchFireInfo('place', range),          // 2: 화재장소별
-        fetchFireInfo('sido-casualty', range),  // 3: 시도별 인명피해
-        fetchFireInfo('building', range),       // 4: 건물구조별
-        fetchFireInfo('property', range),       // 5: 재산피해
+        fetchFireInfo('sido-summary', range, forceRefresh),   // 0: 시도단위 화재발생현황
+        fetchFireInfo('cause', range, forceRefresh),          // 1: 발화요인별
+        fetchFireInfo('place', range, forceRefresh),          // 2: 화재장소별
+        fetchFireInfo('sido-casualty', range, forceRefresh),  // 3: 시도별 인명피해
+        fetchFireInfo('building', range, forceRefresh),       // 4: 건물구조별
+        fetchFireInfo('property', range, forceRefresh),       // 5: 재산피해
       ]);
 
+      let hasStaleData = false;
+      let staleMessage = '';
+
+      const processedResults = results.map(r => {
+        if (r.status === 'fulfilled') return r;
+        if (r.status === 'rejected' && isStaleDataError(r.reason)) {
+          hasStaleData = true;
+          staleMessage = r.reason.message;
+          const t = r.reason.cachedAt ? new Date(r.reason.cachedAt).toLocaleTimeString() : '';
+          staleMessage = `${r.reason.message}${t ? ` (마지막 성공 시각: ${t})` : ''}`;
+          return { status: 'fulfilled', value: r.reason.cachedData } as PromiseFulfilledResult<any>;
+        }
+        return r;
+      });
+
       // 전체 실패 여부 확인
-      const allFailed = results.every(r => r.status === 'rejected');
+      const allFailed = processedResults.every(r => r.status === 'rejected');
       if (allFailed) {
-        const firstErr = (results[0] as PromiseRejectedResult).reason;
+        const firstErr = (processedResults[0] as PromiseRejectedResult).reason;
         setApiError(firstErr?.message || '화재정보 API에 연결할 수 없습니다.');
         setLoading(false);
         return;
       }
+      if (hasStaleData) {
+        setWarning(staleMessage);
+      }
 
       // 시도 요약 → 전국 합산
-      if (results[0].status === 'fulfilled') {
-        const items = results[0].value?.items || [];
+      if (processedResults[0].status === 'fulfilled') {
+        const items = processedResults[0].value?.items || [];
         let total = 0, death = 0, injury = 0, propertyDmg = 0, selfExtinguish = 0, falseReport = 0;
         const sidoArr: any[] = [];
         items.forEach((it: any) => {
@@ -198,8 +218,8 @@ export default function FireAnalysis() {
       }
 
       // 발화요인별
-      if (results[1].status === 'fulfilled') {
-        const items = results[1].value?.items || [];
+      if (processedResults[1].status === 'fulfilled') {
+        const items = processedResults[1].value?.items || [];
         setCauseData(items.map((it: any) => ({
           cause: it.igntnFctrNm || it.발화요인 || '기타',
           count: num(it.fireCnt || it.화재건수),
@@ -207,8 +227,8 @@ export default function FireAnalysis() {
       }
 
       // 화재장소별
-      if (results[2].status === 'fulfilled') {
-        const items = results[2].value?.items || [];
+      if (processedResults[2].status === 'fulfilled') {
+        const items = processedResults[2].value?.items || [];
         setPlaceData(items.map((it: any) => ({
           place: it.firePlceNm || it.화재장소 || '기타',
           count: num(it.fireCnt || it.화재건수),
@@ -216,8 +236,8 @@ export default function FireAnalysis() {
       }
 
       // 시도별 인명피해
-      if (results[3].status === 'fulfilled') {
-        const items = results[3].value?.items || [];
+      if (processedResults[3].status === 'fulfilled') {
+        const items = processedResults[3].value?.items || [];
         setCasualtyData(items.map((it: any) => ({
           sido: it.sidoNm || it.시도명 || '기타',
           death: num(it.deathCnt || it.사망자수),
@@ -226,8 +246,8 @@ export default function FireAnalysis() {
       }
 
       // 건물구조별
-      if (results[4].status === 'fulfilled') {
-        const items = results[4].value?.items || [];
+      if (processedResults[4].status === 'fulfilled') {
+        const items = processedResults[4].value?.items || [];
         setBuildingData(items.map((it: any) => ({
           structure: it.bldgStrcNm || it.건물구조 || '기타',
           count: num(it.fireCnt || it.화재건수),
@@ -263,7 +283,7 @@ export default function FireAnalysis() {
           >
             {years.map(y => <option key={y} value={y}>{y}년</option>)}
           </select>
-          <button onClick={fetchAll} disabled={loading}
+          <button onClick={() => fetchAll(true)} disabled={loading}
             className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 disabled:opacity-50">
             <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
             새로고침
@@ -284,20 +304,27 @@ export default function FireAnalysis() {
       </div>
 
       {/* API 에러 배너 */}
-      {!loading && apiError && (
+      {!loading && apiError && !hasAnyData && (
         <div className="bg-error-container/30 border border-error/30 rounded-xl p-6 text-center">
           <span className="material-symbols-outlined text-5xl text-error/60 mb-3 block">cloud_off</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">화재정보 API 연결 실패</h3>
           <p className="text-sm text-error/80 max-w-lg mx-auto mb-1">{apiError}</p>
-          <p className="text-xs text-on-surface-variant max-w-lg mx-auto mb-4">
-            공공데이터포털에서 API 서비스 신청 후 승인까지 최대 1~2일이 소요될 수 있습니다.<br />
-            이미 승인된 API라면 공공데이터 서버 일시 장애일 수 있으니 잠시 후 다시 시도해주세요.
-          </p>
-          <button onClick={fetchAll}
-            className="bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2">
+          <button onClick={() => fetchAll(true)}
+            className="mt-4 bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">refresh</span>
             다시 시도
           </button>
+        </div>
+      )}
+
+      {/* Warning */}
+      {!loading && warning && (
+        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 통계를 표시 중입니다.</p>
+          </div>
         </div>
       )}
 

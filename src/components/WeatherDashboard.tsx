@@ -7,6 +7,7 @@ import {
 } from '../services/weatherApi';
 import { getRealtimeAirQuality, type AirQualityData } from '../services/airQualityApi';
 import { WindCompass } from './WindCompass';
+import WeatherAlertBanner from './WeatherAlertBanner';
 
 // Fallback data when API fails
 const FALLBACK_WEATHER: CurrentWeather = {
@@ -18,6 +19,11 @@ const FALLBACK_WEATHER: CurrentWeather = {
 interface WeatherDashboardProps {
   city: string;
 }
+
+const toNumber = (value: string | number | undefined | null) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 
 export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   const [current, setCurrent] = useState<CurrentWeather>(FALLBACK_WEATHER);
@@ -34,6 +40,7 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   const isDragging = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
+  const fetchSeqRef = useRef(0);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
@@ -61,17 +68,21 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   const grid = CITY_GRIDS[city] || CITY_GRIDS['seoul'];
 
   const fetchAll = useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
     setLoading(true);
     setError('');
     try {
+      const cityLabel = grid.name || '서울';
       const [nowItems, fcstItems, midL, midT, brief, aqRes] = await Promise.allSettled([
         getUltraShortNow(grid.nx, grid.ny),
         getShortTermFcst(grid.nx, grid.ny),
         getMidTermLand(),
         getMidTermTemp(),
         getWeatherBriefing(),
-        getRealtimeAirQuality(city),
+        getRealtimeAirQuality(cityLabel),
       ]);
+
+      if (seq !== fetchSeqRef.current) return;
 
       if (nowItems.status === 'fulfilled' && nowItems.value.length > 0) {
         setCurrent(parseCurrentWeather(nowItems.value));
@@ -79,7 +90,7 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
         setCurrent(parseCurrentWeather(fcstItems.value));
         setError('초단기실황 API 응답 없음 → 단기예보 데이터로 대체 중');
       } else {
-        setError('날씨 데이터를 가져올 수 없습니다. API 키를 확인하세요.');
+        setError('기상청 서버 응답 지연 (데이터 생성 중 또는 트래픽 과부하). 잠시 후 다시 시도해주세요.');
       }
       if (fcstItems.status === 'fulfilled') setHourly(parseHourlyForecast(fcstItems.value));
       if (midL.status === 'fulfilled') setMidLand(midL.value);
@@ -88,10 +99,14 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
       if (aqRes.status === 'fulfilled') setAirQuality(aqRes.value);
 
       setLastRefresh(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
-    } catch {
+    } catch (err) {
+      if (seq !== fetchSeqRef.current) return;
+      console.warn('[WeatherDashboard] fetchAll failed:', err);
       setError('API 호출 중 오류가 발생했습니다.');
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [grid.nx, grid.ny, city]);
 
@@ -105,8 +120,14 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   const formatTime = (t: string) => `${t.slice(0, 2)}시`;
   const formatDate = (d: string) => `${d.slice(4, 6)}/${d.slice(6, 8)}`;
 
+  const isBadAir = (() => {
+    if (!airQuality) return false;
+    const pm10 = toNumber(airQuality.pm10Value);
+    return (pm10 !== null && pm10 > 150) || airQuality.pm10Grade === '4';
+  })();
+
   const getBgGradient = () => {
-    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) {
+    if (isBadAir) {
       return 'from-yellow-900/80 via-amber-800/40 to-orange-900/20 border-yellow-500/30 shadow-[inset_0_0_80px_rgba(202,138,4,0.2)]';
     }
     if (current.precipType.includes('비') || current.precipType.includes('소나기') || current.precipType === '빗방울') {
@@ -125,7 +146,7 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   };
 
   const getBgImage = () => {
-    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) {
+    if (isBadAir) {
       return '/images/weather/dust.png';
     }
     if (current.precipType === '소나기') {
@@ -142,7 +163,7 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
   };
 
   const getAccentColor = () => {
-    if (airQuality && (parseInt(airQuality.pm10Value) > 150 || airQuality.pm10Grade === '4')) return 'text-amber-300';
+    if (isBadAir) return 'text-amber-300';
     if (current.precipType.includes('비') || current.precipType.includes('소나기') || current.precipType === '빗방울') return 'text-blue-300/80';
     if (current.precipType.includes('눈')) return 'text-indigo-300/80';
     if (current.sky === '맑음') return 'text-amber-400/80';
@@ -224,12 +245,13 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
 
   return (
     <div className="space-y-6">
+      <WeatherAlertBanner city={grid.name} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-extrabold text-on-surface font-headline">🌤️ 기상 정보</h2>
           <p className="text-sm text-on-surface-variant mt-1">
-            기상청 API Hub 실시간 연동 · <span className="text-primary font-bold">{grid.name}</span>
+            기상청 API 연동 · 5분 주기 자동 갱신 · <span className="text-primary font-bold">{grid.name}</span>
             {lastRefresh && <span className="ml-2 text-on-surface-variant">· 갱신 {lastRefresh}</span>}
           </p>
         </div>
@@ -358,9 +380,13 @@ export default function WeatherDashboard({ city }: WeatherDashboardProps) {
             <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant mb-3">🎯 현장 활동 참고</p>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-on-surface-variant">체감온도</span>
+                <span className="text-on-surface-variant">
+                  {current.temperature <= 10 ? '체감온도' : '현재기온'}
+                </span>
                 <span className="font-bold text-on-surface">
-                  {(13.12 + 0.6215 * current.temperature - 11.37 * Math.pow(Math.max(current.windSpeed * 3.6, 4.8), 0.16) + 0.3965 * current.temperature * Math.pow(Math.max(current.windSpeed * 3.6, 4.8), 0.16)).toFixed(1)}°C
+                  {current.temperature <= 10 
+                    ? (13.12 + 0.6215 * current.temperature - 11.37 * Math.pow(Math.max(current.windSpeed * 3.6, 4.8), 0.16) + 0.3965 * current.temperature * Math.pow(Math.max(current.windSpeed * 3.6, 4.8), 0.16)).toFixed(1)
+                    : current.temperature.toFixed(1)}°C
                 </span>
               </div>
               <div className="flex justify-between">

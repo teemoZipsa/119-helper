@@ -1,7 +1,8 @@
 import { useTimer } from '../contexts/TimerContext';
+import type { NavigateTarget } from '../types/navigation';
 
 interface Props {
-  onNavigate: (id: any, subId?: string) => void;
+  onNavigate: (id: NavigateTarget, subId?: string) => void;
 }
 
 export default function MiniTimerWidget({ onNavigate }: Props) {
@@ -15,9 +16,10 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
 
   if (!hasActivity) {
     return (
-      <div 
+      <button 
+        type="button"
         onClick={() => onNavigate('field-timer')}
-        className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 hover:border-primary/20 hover:bg-surface-container/30 transition-all cursor-pointer group flex items-center justify-between shadow-sm"
+        className="w-full text-left bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 hover:border-primary/20 hover:bg-surface-container/30 transition-all cursor-pointer group flex items-center justify-between shadow-sm"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 bg-surface-container rounded-lg group-hover:bg-primary/10 transition-colors">
@@ -28,18 +30,19 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
             <p className="text-[10px] text-on-surface-variant mt-0.5">활동 기록 대기 중</p>
           </div>
         </div>
-        <button className="text-xs font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg group-hover:bg-primary/15 transition-colors flex items-center gap-1">
+        <div className="text-xs font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg group-hover:bg-primary/15 transition-colors flex items-center gap-1">
           시작
-        </button>
-      </div>
+        </div>
+      </button>
     );
   }
 
   // Active State
   return (
-    <div 
+    <button 
+      type="button"
       onClick={() => onNavigate('field-timer')}
-      className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 sm:p-5 hover:border-primary/40 transition-all cursor-pointer shadow-lg shadow-black/5 flex flex-col gap-3 relative overflow-hidden group"
+      className="w-full text-left bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-4 sm:p-5 hover:border-primary/40 transition-all cursor-pointer shadow-lg shadow-black/5 flex flex-col gap-3 relative overflow-hidden group"
     >
       <div className="flex items-center justify-between z-10 w-full relative">
         <div className="flex items-center justify-between w-full">
@@ -48,7 +51,9 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                 </span>
-                <h3 className="text-sm font-bold text-on-surface">작전 진행 중</h3>
+                <h3 className="text-sm font-bold text-on-surface">
+                  {stopwatchStart ? '출동 기록 중' : timers.some(t => t.isRunning) ? '타이머 진행 중' : timers.some(t => t.remaining <= 0) ? '종료된 타이머 있음' : '타이머 대기 중'}
+                </h3>
             </div>
             <span className="material-symbols-outlined text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity text-[18px]">open_in_new</span>
         </div>
@@ -68,7 +73,7 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
             {(() => {
               const sorted = [...timers].sort((a,b) => a.remaining - b.remaining);
               const shortest = sorted[0];
-              const isDanger = shortest.remaining <= shortest.totalSeconds * DANGER_THRESHOLD;
+              const isDanger = shortest.totalSeconds > 0 ? shortest.remaining <= shortest.totalSeconds * DANGER_THRESHOLD : true;
               return (
                 <p className={`text-4xl font-black font-mono tracking-tight tabular-nums ${shortest.remaining <= 0 || isDanger ? 'text-red-400' : 'text-green-400'}`}>
                   {formatTime(shortest.remaining)}
@@ -82,8 +87,8 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
       {timers.length > 0 && (
         <div className="space-y-2.5 mt-2 z-10">
           {[...timers].sort((a,b) => a.remaining - b.remaining).slice(0, 2).map(t => {
-            const ratio = t.remaining / t.totalSeconds;
-            const progress = t.totalSeconds > 0 ? ((t.totalSeconds - t.remaining) / t.totalSeconds) * 100 : 0;
+            const ratio = t.totalSeconds > 0 ? t.remaining / t.totalSeconds : 0;
+            const progress = t.totalSeconds > 0 ? ((t.totalSeconds - t.remaining) / t.totalSeconds) * 100 : 100;
             const isDanger = ratio <= DANGER_THRESHOLD;
             const isWarn = ratio <= WARN_THRESHOLD;
             const colorClass = t.remaining <= 0 ? 'bg-red-500' : isDanger ? 'bg-red-500' : isWarn ? 'bg-yellow-500' : 'bg-green-500';
@@ -109,13 +114,13 @@ export default function MiniTimerWidget({ onNavigate }: Props) {
             );
           })}
           {timers.length > 2 && (
-            <p className="text-[10px] text-center text-on-surface-variant pt-1 font-bold">+ 외 {timers.length - 2}개 공기호흡기</p>
+            <p className="text-[10px] text-center text-on-surface-variant pt-1 font-bold">+ 외 {timers.length - 2}개 타이머</p>
           )}
         </div>
       )}
 
       {/* Decorative gradient background */}
       <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl z-0 pointer-events-none" />
-    </div>
+    </button>
   );
 }

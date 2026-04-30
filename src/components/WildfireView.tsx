@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchWildfires, type WildfireItem } from '../services/wildfireApi';
 import { latLngToGrid, getUltraShortNow, parseCurrentWeather, type CurrentWeather } from '../services/weatherApi';
+import { WindCompass } from './WindCompass';
 
 export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
   const [fires, setFires] = useState<WildfireItem[]>([]);
@@ -11,25 +12,32 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
 
   const loadData = async (forceRefresh = false) => {
     setIsLoading(true);
-    const data = await fetchWildfires('200', '1', forceRefresh);
-    setFires(data);
-    setLastUpdated(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    setIsLoading(false);
+    try {
+      const data = await fetchWildfires('200', '1', forceRefresh);
+      setFires(data);
+      setLastUpdated(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
-    // 진화중인 산불에 대해 실시간 바람 데이터 로드
-    const ongoingFires = data.filter(f => f.isOngoing && f.lat && f.lng);
-    ongoingFires.forEach(async (f) => {
-      try {
-        const grid = latLngToGrid(f.lat!, f.lng!);
-        const items = await getUltraShortNow(grid.nx, grid.ny);
-        if (items.length > 0) {
-          const weather = parseCurrentWeather(items);
-          setWindInfo(prev => ({ ...prev, [f.id]: weather }));
-        }
-      } catch (err) {
-        console.error('Failed to fetch wind for fire', f.id, err);
-      }
-    });
+      // 진화중인 산불에 대해 실시간 바람 데이터 로드
+      const ongoingFires = data.filter(f => f.isOngoing && f.lat && f.lng);
+      const entries = await Promise.all(
+        ongoingFires.map(async (f) => {
+          try {
+            const grid = latLngToGrid(f.lat!, f.lng!);
+            const items = await getUltraShortNow(grid.nx, grid.ny);
+            if (items.length === 0) return null;
+            return [f.id, parseCurrentWeather(items)] as const;
+          } catch (err) {
+            console.warn('[wildfire wind] failed:', f.id, err);
+            return null;
+          }
+        })
+      );
+      setWindInfo(Object.fromEntries(entries.filter(Boolean) as [string, CurrentWeather][]));
+    } catch (err) {
+      console.warn('[wildfire] load failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -175,18 +183,21 @@ export const WildfireView: React.FC<{ cityName?: string }> = ({ cityName }) => {
                 </div>
                 {/* 실시간 바람 (진화 중일 때만 표시) */}
                 {fire.isOngoing && windInfo[fire.id] && (
-                  <div className="mt-3 inline-flex flex-col bg-surface-variant p-2.5 rounded-lg border border-error/20">
-                    <div className="flex items-center text-xs font-bold text-on-background mb-1 drop-shadow-sm">
-                      <span className="material-symbols-outlined text-sm mr-1">air</span> 
-                      현장 실시간 바람 분석
-                    </div>
-                    <div className="text-sm">
-                      현재 <span className="font-extrabold text-blue-400">{windInfo[fire.id].windDirection}풍 {windInfo[fire.id].windSpeed}m/s</span>
-                      {windInfo[fire.id].windSpeed >= 5 ? ' (강풍주의)' : ''}
-                    </div>
-                    <div className="text-sm mt-0.5 flex items-center">
-                      <span className="material-symbols-outlined text-sm text-error mr-1 animate-pulse">local_fire_department</span>
-                      AI 예측: 불길이 <span className="font-bold text-error mx-1 underline underline-offset-2">{getSpreadDirection(windInfo[fire.id].windDirection)}쪽</span>으로 확산 위험
+                  <div className="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <WindCompass
+                      windSpeed={windInfo[fire.id].windSpeed}
+                      windDirectionDegree={windInfo[fire.id].windDirectionDegree ?? 0}
+                      windDirectionText={windInfo[fire.id].windDirection}
+                    />
+                    <div className="bg-surface-variant p-2.5 rounded-lg border border-error/20 flex-1 max-w-sm">
+                      <div className="flex items-center text-xs font-bold text-on-background mb-1 drop-shadow-sm">
+                        <span className="material-symbols-outlined text-sm mr-1">warning</span> 
+                        현장 참고사항
+                      </div>
+                      <div className="text-sm mt-0.5 flex items-start">
+                        <span className="material-symbols-outlined text-sm text-error mr-1 mt-0.5 animate-pulse">local_fire_department</span>
+                        <span>풍향 기준 참고: 불길이 <span className="font-bold text-error mx-1 underline underline-offset-2">{getSpreadDirection(windInfo[fire.id].windDirection)}쪽</span>으로 번질 가능성 확인 필요</span>
+                      </div>
                     </div>
                   </div>
                 )}

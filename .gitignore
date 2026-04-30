@@ -41,3 +41,4 @@ eslint_report.json
 lint_errors.txt
 lint_output.txt
 tmp_lint.txt
+.serena/ 

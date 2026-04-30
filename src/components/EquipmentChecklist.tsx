@@ -35,6 +35,8 @@ const CHECKLIST_SECTIONS = [
   }
 ];
 
+export const EQUIPMENT_CHECKLIST_TOTAL = CHECKLIST_SECTIONS.reduce((acc, sec) => acc + sec.items.length, 0);
+
 const EquipmentChecklist: React.FC = () => {
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(() => {
     try {

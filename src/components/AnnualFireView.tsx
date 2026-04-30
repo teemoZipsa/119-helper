@@ -1,8 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
-import { fetchAnnualFireStats } from '../services/apiClient';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { fetchAnnualFireStats, isStaleDataError } from '../services/apiClient';
 import type { AnnualFireStatsResponse } from '../services/apiClient';
 
-const YEARS = Array.from({ length: 10 }, (_, i) => String(2024 - i));
+const LATEST_AVAILABLE_YEAR = 2024;
+const YEARS = Array.from({ length: 10 }, (_, i) => String(LATEST_AVAILABLE_YEAR - i));
+
+const csvEscape = (value: unknown) => {
+  const text = String(value ?? '');
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
+};
 
 const COLORS = [
   '#4f8cff', '#34d399', '#f59e0b', '#ef4444', '#a78bfa',
@@ -21,24 +30,44 @@ export default function AnnualFireView() {
   const [data, setData] = useState<AnnualFireStatsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const requestSeqRef = useRef(0);
+
+  const getErrorMessage = (err: unknown) => {
+    return err instanceof Error ? err.message : '데이터를 불러올 수 없습니다.';
+  };
+
+  const loadStats = useCallback(async (forceRefresh = false) => {
+    const seq = ++requestSeqRef.current;
+
     setLoading(true);
     setError(null);
-    setData(null);
-    fetchAnnualFireStats(year)
-      .then(res => {
-        if (!cancelled) setData(res);
-      })
-      .catch(err => {
-        if (!cancelled) setError(err.message || '데이터를 불러올 수 없습니다.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
+    setWarning(null);
+
+    try {
+      const res = await fetchAnnualFireStats(year, forceRefresh);
+      if (seq !== requestSeqRef.current) return;
+      setData(res);
+    } catch (err) {
+      if (seq !== requestSeqRef.current) return;
+      if (isStaleDataError(err)) {
+        setData(err.cachedData);
+        const t = err.cachedAt ? new Date(err.cachedAt).toLocaleTimeString() : '';
+        setWarning(`${err.message}${t ? ` (성공: ${t})` : ''}`);
+      } else {
+        setError(getErrorMessage(err));
+      }
+    } finally {
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+      }
+    }
   }, [year]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   // 바 차트 최대값
   const maxSido = useMemo(() => data ? Math.max(...data.bySido.map(d => d.count), 1) : 1, [data]);
@@ -68,10 +97,11 @@ export default function AnnualFireView() {
             ))}
           </select>
           <button
-            onClick={() => { setData(null); setError(null); setLoading(true); fetchAnnualFireStats(year).then(setData).catch(e => setError(e.message)).finally(() => setLoading(false)); }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+            onClick={() => loadStats(true)}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-lg">refresh</span>
+            <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
             새로고침
           </button>
           {data && (
@@ -88,12 +118,14 @@ export default function AnnualFireView() {
                 data.byCause.forEach(d => rows.push(['발화요인', d.name, String(d.count)]));
                 data.byMonth.forEach(d => rows.push(['월별', d.month, String(d.count)]));
                 data.casualtiesBySido.forEach(d => rows.push(['인명피해', d.name, `사망${d.deaths}/부상${d.injuries}`]));
-                const csv = '\uFEFF' + rows.map(r => r.join(',')).join('\n');
+                const csv = '\uFEFF' + rows.map(r => r.map(csvEscape).join(',')).join('\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
+                a.href = url;
                 a.download = `화재통계_${year}년.csv`;
                 a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 0);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-xl text-sm font-bold hover:bg-secondary/90 transition-colors"
             >
@@ -107,7 +139,7 @@ export default function AnnualFireView() {
       {/* Loading */}
       {loading && (
         <div className="flex flex-col items-center gap-4 py-16">
-          <div className="w-10 h-10 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <div className="w-10 h-10 border-[3px] border-primary/30 border-t-primary rounded-full animate-spin" />
           <div className="text-sm text-on-surface-variant">
             <span className="font-bold text-primary">{year}년</span> 화재통계 데이터 집계 중...
           </div>
@@ -116,24 +148,32 @@ export default function AnnualFireView() {
       )}
 
       {/* Error */}
-      {error && !loading && (
+      {error && !loading && !data && (
         <div className="p-6 rounded-2xl bg-error/10 border border-error/30">
           <div className="flex items-start gap-3">
             <span className="material-symbols-outlined text-error text-2xl mt-0.5">cloud_off</span>
             <div className="flex-1">
               <h3 className="font-bold text-error text-lg">연간화재통계 API 연결 실패</h3>
               <p className="text-sm text-on-surface-variant mt-1">{error}</p>
-              <p className="text-xs text-on-surface-variant/60 mt-2">
-                API 서비스 승인 대기 중이거나 공공데이터 서버 점검 중입니다.
-              </p>
               <button
-                onClick={() => setYear(y => y)}
+                onClick={() => loadStats(true)}
                 className="mt-4 flex items-center gap-2 px-4 py-2 bg-error/20 text-error rounded-xl text-sm font-bold hover:bg-error/30 transition-colors"
               >
                 <span className="material-symbols-outlined text-base">refresh</span>
                 다시 시도
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning */}
+      {!loading && warning && (
+        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 통계를 표시 중입니다.</p>
           </div>
         </div>
       )}
@@ -148,7 +188,7 @@ export default function AnnualFireView() {
               { label: '사망', value: `${data.summary.totalDeaths}명`, icon: 'person_off', color: 'text-error' },
               { label: '부상', value: `${data.summary.totalInjuries}명`, icon: 'personal_injury', color: 'text-tertiary' },
               { label: '인명피해 합계', value: `${data.summary.totalCasualties}명`, icon: 'group', color: 'text-on-surface' },
-              { label: '재산피해', value: `${formatNumber(data.summary.totalPropertyDamage)}원`, icon: 'payments', color: 'text-primary' },
+              { label: '재산피해액(원)', value: `${formatNumber(data.summary.totalPropertyDamage)}원`, icon: 'payments', color: 'text-primary' },
             ].map(card => (
               <div key={card.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10">
                 <div className="flex items-center gap-2 mb-2">

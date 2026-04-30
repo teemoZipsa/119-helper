@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { fetchMultiUseFacilities } from '../services/apiClient';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { fetchMultiUseFacilities, isStaleDataError } from '../services/apiClient';
 
 const cityShort: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -50,6 +50,17 @@ function getMeta(type: string) {
   return TYPE_META[type] || { icon: '🏢', color: 'text-gray-400', barColor: 'bg-gray-400' };
 }
 
+const toNumber = (value: unknown) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+  if (typeof value === 'string') {
+    const n = Number(value.replaceAll(',', '').trim());
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  return 0;
+};
+
 interface TypeStat {
   type: string;
   count: number;
@@ -67,30 +78,47 @@ export default function MultiUseView({ city }: MultiUseViewProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
+
     setLoading(true);
     setApiError(null);
+    setWarning(null);
     try {
-      const data = await fetchMultiUseFacilities(cityToCtprvn[city] || '서울특별시');
-      // API 응답: 전국 시도별 배열 (19개), 각 항목에 "소방본부" 필드로 시도명 포함
+      const ctprvn = cityToCtprvn[city];
+
+      if (!ctprvn) {
+        setApiError(`지원하지 않는 지역입니다: ${city}`);
+        setStats([]);
+        setTotal(0);
+        return;
+      }
+
+      const data = await fetchMultiUseFacilities(ctprvn);
+      if (seq !== requestSeqRef.current) return;
+
       const items = Array.isArray(data) ? data : (data as any)?.items || [];
       
-      // 현재 도시에 해당하는 항목만 필터링
       const shortName = (cityShort[city] || '서울').trim();
       const cityItem = items.find((item: any) => {
         const hq = String(item['소방본부'] || '').replace(/\s/g, '');
         return hq.includes(shortName);
       });
 
-      // 통계 데이터 파싱 — 해당 도시의 업종:개수
       const combined: Record<string, number> = {};
       if (cityItem) {
         Object.entries(cityItem).forEach(([key, val]) => {
-          if (typeof val === 'number' && val > 0) {
-            if (!['순번', '연도'].includes(key) && !key.includes('소방본부') && !key.includes('관할')) {
-              combined[key] = Number(val);
-            }
+          const count = toNumber(val);
+          if (
+            count > 0 &&
+            !['순번', '연도'].includes(key) &&
+            !key.includes('소방본부') &&
+            !key.includes('관할')
+          ) {
+            combined[key] = count;
           }
         });
       }
@@ -101,10 +129,41 @@ export default function MultiUseView({ city }: MultiUseViewProps) {
       
       setStats(sorted);
       setTotal(sorted.reduce((sum, s) => sum + s.count, 0));
-    } catch (e: any) {
-      setApiError(e?.message || '다중이용업소 데이터를 불러올 수 없습니다.');
+    } catch (err: any) {
+      if (seq !== requestSeqRef.current) return;
+
+      if (isStaleDataError(err)) {
+        const items = Array.isArray(err.cachedData) ? err.cachedData : (err.cachedData as any)?.items || [];
+        const shortName = (cityShort[city] || '서울').trim();
+        const cityItem = items.find((item: any) => {
+          const hq = String(item['소방본부'] || '').replace(/\s/g, '');
+          return hq.includes(shortName);
+        });
+
+        const combined: Record<string, number> = {};
+        if (cityItem) {
+          Object.entries(cityItem).forEach(([key, val]) => {
+            const count = toNumber(val);
+            if (count > 0 && !['순번', '연도'].includes(key) && !key.includes('소방본부') && !key.includes('관할')) {
+              combined[key] = count;
+            }
+          });
+        }
+        const sorted = Object.entries(combined)
+          .map(([type, count]) => ({ type, count, ...getMeta(type) }))
+          .sort((a, b) => b.count - a.count);
+        
+        setStats(sorted);
+        setTotal(sorted.reduce((sum, s) => sum + s.count, 0));
+        setWarning(err.message);
+      } else {
+        setApiError(err instanceof Error ? err.message : '다중이용업소 데이터를 불러올 수 없습니다.');
+      }
+    } finally {
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   }, [city]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -122,20 +181,31 @@ export default function MultiUseView({ city }: MultiUseViewProps) {
             {!loading && !apiError && <span className="ml-2">· 총 <span className="font-bold text-primary">{total.toLocaleString()}</span>개소</span>}
           </p>
         </div>
-        <button onClick={fetchData} disabled={loading}
+        <button type="button" onClick={fetchData} disabled={loading}
           className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2 disabled:opacity-50">
           <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
           새로고침
         </button>
       </div>
 
+      {/* API 경고 (캐시 데이터 사용 시) */}
+      {!loading && warning && (
+        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 데이터를 표시 중입니다.</p>
+          </div>
+        </div>
+      )}
+
       {/* API 에러 */}
-      {!loading && apiError && (
+      {!loading && apiError && stats.length === 0 && (
         <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-6 text-center">
           <span className="material-symbols-outlined text-5xl text-red-400/60 mb-3 block">cloud_off</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">다중이용업소 API 연결 실패</h3>
           <p className="text-sm text-red-300/80 max-w-lg mx-auto mb-1">{apiError}</p>
-          <button onClick={fetchData}
+          <button type="button" onClick={fetchData}
             className="mt-3 bg-red-500/20 text-red-300 px-5 py-2 rounded-lg text-sm font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">refresh</span>
             다시 시도
@@ -148,6 +218,19 @@ export default function MultiUseView({ city }: MultiUseViewProps) {
         <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-12 flex items-center justify-center gap-3">
           <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
           <span className="text-sm text-on-surface-variant">데이터 로딩 중...</span>
+        </div>
+      )}
+
+      {/* 데이터 없음 */}
+      {!loading && !apiError && stats.length === 0 && (
+        <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-8 text-center">
+          <span className="material-symbols-outlined text-4xl text-on-surface-variant/50 mb-2 block">
+            search_off
+          </span>
+          <p className="text-sm font-bold text-on-surface">해당 지역의 다중이용업소 통계를 찾을 수 없습니다.</p>
+          <p className="text-xs text-on-surface-variant mt-1">
+            API 응답의 소방본부 명칭 또는 제공 연도를 확인하세요.
+          </p>
         </div>
       )}
 

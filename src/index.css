@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=Inter:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 /* ═══════════════════════════════════════════════════
    Token Registration (Tailwind v4)
@@ -60,16 +58,41 @@
   --color-inverse-primary: var(--t-inverse-primary);
 
   /* Typography */
-  --font-headline: 'Manrope', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-label: 'Inter', sans-serif;
+  --font-headline: 'Manrope', 'Pretendard', 'Noto Sans KR', sans-serif;
+  --font-body: 'Inter', 'Pretendard', 'Noto Sans KR', sans-serif;
+  --font-label: 'Inter', 'Pretendard', 'Noto Sans KR', sans-serif;
 
   /* Border Radius */
   --radius-sm: 0.25rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
+
+  /* Custom Animations */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-in-top: slide-in-top 0.3s ease-out;
+  --animate-slide-in-bottom: slide-in-bottom 0.3s ease-out;
+  --animate-ticker: ticker 35s linear infinite;
 }
 
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-in-top {
+  from { opacity: 0; transform: translateY(-1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-bottom {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ticker {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
 /* ═══════════════════════════════════════════════════
    🌙 Dark Theme (Default)
    ═══════════════════════════════════════════════════ */
@@ -199,6 +222,14 @@
 /* ═══════════════════════════════════════════════════
    Base Styles
    ═══════════════════════════════════════════════════ */
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
 body {
   font-family: var(--font-body);
   background-color: var(--t-background);
@@ -273,4 +304,21 @@ h1, h2, h3, h4, h5, h6 {
 }
 .animate-marquee {
   animation: marquee var(--marquee-duration, 20s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .weather-particle-rain,
+  .weather-particle-snow,
+  .animate-marquee {
+    animation: none !important;
+  }
 }

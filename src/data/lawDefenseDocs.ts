@@ -9,6 +9,9 @@ export interface LawDefenseDoc {
   coreLaw: string;
   winPrecedent: string; // 승소/면책 판례 요약
   actionManual: string[]; // 즉각 행동 매뉴얼
+  source?: string;
+  caseNumber?: string;
+  lastReviewed?: string;
 }
 
 export const LAW_DEFENSE_DOCS: LawDefenseDoc[] = [

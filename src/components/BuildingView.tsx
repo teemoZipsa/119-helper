@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { fetchBuildingRegister, type BuildingRegisterInfo } from '../services/buildingApi';
-import { fetchFireObjectAccom, fetchFireObjectFireSys } from '../services/apiClient';
+import { fetchFireObjectAccom, fetchFireObjectFireSys, isStaleDataError } from '../services/apiClient';
 
 interface FireObjectAccom {
   bldNm?: string;
@@ -29,20 +29,44 @@ interface FireObjectFireSys {
   [key: string]: any;
 }
 
+interface RecentSearchItem {
+  address: string;
+  params?: {
+    sigunguCd: string;
+    bjdongCd: string;
+    platGbCd: string;
+    bun: string;
+    ji: string;
+    sido: string;
+    address_name: string;
+  };
+}
+
+const loadRecentSearches = (): RecentSearchItem[] => {
+  try {
+    const saved = localStorage.getItem('119helper-building-recent');
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    
+    return parsed.map(v => {
+      if (typeof v === 'string') return { address: v };
+      return v;
+    }).slice(0, 10);
+  } catch {
+    return [];
+  }
+};
+
 export default function BuildingView() {
   const [address, setAddress] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [warningMsg, setWarningMsg] = useState('');
   const [bldgInfo, setBldgInfo] = useState<(BuildingRegisterInfo & { searchedAddress?: string }) | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('119helper-building-recent');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>(loadRecentSearches);
 
   // 소방시설 정보
   const [fireAccom, setFireAccom] = useState<FireObjectAccom[]>([]);
@@ -50,26 +74,131 @@ export default function BuildingView() {
   const [fireLoading, setFireLoading] = useState(false);
   const [fireError, setFireError] = useState('');
 
-  const handleSearch = (searchTerm?: string | React.MouseEvent) => {
-    const targetAddress = typeof searchTerm === 'string' ? searchTerm : address;
+  const requestSeqRef = useRef(0);
+
+  const runSearch = (target: string | RecentSearchItem, forceRefresh = false) => {
+    const isObj = typeof target === 'object';
+    const targetAddress = isObj ? target.address : target;
+    const targetParams = isObj ? target.params : undefined;
+
     if (!targetAddress.trim()) return;
-    if (typeof searchTerm === 'string') setAddress(targetAddress);
+    setAddress(targetAddress);
+    
+    const seq = ++requestSeqRef.current;
     setIsLoading(true);
     setErrorMsg('');
+    setWarningMsg('');
     setBldgInfo(null);
     setHasSearched(true);
     setFireAccom([]);
     setFireSys([]);
     setFireError('');
 
+    const fetchApis = async (parsed: NonNullable<typeof targetParams>) => {
+      let apiRes: BuildingRegisterInfo | null = null;
+      try {
+        apiRes = await fetchBuildingRegister(parsed.sigunguCd, parsed.bjdongCd, parsed.platGbCd, parsed.bun, parsed.ji, forceRefresh);
+      } catch (e: any) {
+        if (seq !== requestSeqRef.current) return;
+        if (isStaleDataError(e)) {
+          apiRes = e.cachedData as BuildingRegisterInfo;
+          const timeStr = e.cachedAt ? new Date(e.cachedAt).toLocaleTimeString() : '';
+          setWarningMsg(`${e.message}${timeStr ? ` (성공: ${timeStr})` : ''}`);
+        } else {
+          setErrorMsg('정부 건축물대장 API 허브 연동 중 오류 발생');
+        }
+      }
+
+      if (seq !== requestSeqRef.current) return;
+
+      if (apiRes) {
+        setBldgInfo({ ...apiRes, searchedAddress: parsed.address_name });
+        setRecentSearches(prev => {
+          const newItem: RecentSearchItem = { address: targetAddress, params: parsed };
+          const updated = [newItem, ...prev.filter(item => item.address !== targetAddress)].slice(0, 10);
+          localStorage.setItem('119helper-building-recent', JSON.stringify(updated));
+          return updated;
+        });
+      } else if (!errorMsg) {
+        setErrorMsg('해당 주소에 등록된 건축물대장 표제건물 정보를 찾을 수 없습니다.');
+      }
+      
+      if (seq === requestSeqRef.current) {
+        setIsLoading(false);
+      }
+
+      // 소방시설 정보 조회
+      const sido = parsed.sido;
+      if (sido) {
+        if (seq === requestSeqRef.current) {
+          setFireLoading(true);
+        }
+        try {
+          const [accomRes, sysRes] = await Promise.allSettled([
+            fetchFireObjectAccom(sido, '50', '1', forceRefresh),
+            fetchFireObjectFireSys(sido, '50', '1', forceRefresh),
+          ]);
+          
+          if (seq !== requestSeqRef.current) return;
+
+          let hasFireError = false;
+
+          if (accomRes.status === 'fulfilled') {
+            setFireAccom(accomRes.value.items || []);
+          } else if (isStaleDataError(accomRes.reason)) {
+            setFireAccom(accomRes.reason.cachedData?.items || []);
+            const t = accomRes.reason.cachedAt ? ` (성공: ${new Date(accomRes.reason.cachedAt).toLocaleTimeString()})` : '';
+            setFireError(`${accomRes.reason.message}${t}`);
+          } else {
+            hasFireError = true;
+            console.warn('[BuildingView] fire accom failed:', accomRes.reason);
+          }
+
+          if (sysRes.status === 'fulfilled') {
+            setFireSys(sysRes.value.items || []);
+          } else if (isStaleDataError(sysRes.reason)) {
+            setFireSys(sysRes.reason.cachedData?.items || []);
+            const t = sysRes.reason.cachedAt ? ` (성공: ${new Date(sysRes.reason.cachedAt).toLocaleTimeString()})` : '';
+            setFireError(`${sysRes.reason.message}${t}`);
+          } else {
+            hasFireError = true;
+            console.warn('[BuildingView] fire sys failed:', sysRes.reason);
+          }
+
+          if (hasFireError && !fireError) {
+            setFireError('일부 소방시설 정보를 불러오지 못했습니다.');
+          }
+        } finally {
+          if (seq === requestSeqRef.current) {
+            setFireLoading(false);
+          }
+        }
+      }
+    };
+
+    if (targetParams) {
+      fetchApis(targetParams);
+      return;
+    }
+
+    // 오프라인/카카오API 방어: 최근 검색 기록 중 주소가 정확히 일치하는 캐시가 있으면 카카오 지오코더 우회
+    const cachedTarget = recentSearches.find(r => r.address === targetAddress && r.params);
+    if (cachedTarget && cachedTarget.params) {
+      fetchApis(cachedTarget.params);
+      return;
+    }
+
     if (!window.kakao?.maps?.services) {
+      if (seq !== requestSeqRef.current) return;
       setErrorMsg('카카오 주소검색(Geocoder) 서비스 로드 실패. [새로고침] 해주세요.');
       setIsLoading(false);
       return;
     }
 
     const geocoder = new window.kakao.maps.services.Geocoder();
-    geocoder.addressSearch(targetAddress, async (result: any, status: any) => {
+    geocoder.addressSearch(targetAddress, (result: any, status: any) => {
+      if (seq !== requestSeqRef.current) return;
+
       if (status === window.kakao.maps.services.Status.OK && result[0]) {
         const item = result[0];
         const addrObj = item.address;
@@ -99,48 +228,29 @@ export default function BuildingView() {
            return;
         }
 
-        try {
-          const apiRes = await fetchBuildingRegister(sigunguCd, bjdongCd, platGbCd, bun, ji);
-          if (apiRes) {
-            setBldgInfo({ ...apiRes, searchedAddress: addrObj.address_name });
-            setRecentSearches(prev => {
-              const updated = [targetAddress, ...prev.filter(item => item !== targetAddress)].slice(0, 10);
-              localStorage.setItem('119helper-building-recent', JSON.stringify(updated));
-              return updated;
-            });
-          } else {
-            setErrorMsg('해당 주소에 등록된 건축물대장 표제건물 정보를 찾을 수 없습니다.');
-          }
-        } catch {
-          setErrorMsg('정부 건축물대장 API 허브 연동 중 오류 발생');
-        }
-        setIsLoading(false);
+        const parsedParams = {
+          sigunguCd,
+          bjdongCd,
+          platGbCd,
+          bun,
+          ji,
+          sido: addrObj.region_1depth_name || '',
+          address_name: addrObj.address_name
+        };
 
-        // 소방시설 정보 조회 (지역명 추출)
-        const sido = addrObj.region_1depth_name || '';
-        if (sido) {
-          setFireLoading(true);
-          try {
-            const [accomRes, sysRes] = await Promise.allSettled([
-              fetchFireObjectAccom(sido, '50'),
-              fetchFireObjectFireSys(sido, '50'),
-            ]);
-            if (accomRes.status === 'fulfilled') setFireAccom(accomRes.value.items || []);
-            if (sysRes.status === 'fulfilled') setFireSys(sysRes.value.items || []);
-          } catch {
-            setFireError('소방시설 정보 조회 실패 — API 승인 대기 중일 수 있습니다.');
-          }
-          setFireLoading(false);
-        }
+        fetchApis(parsedParams);
       } else {
+        if (seq !== requestSeqRef.current) return;
         setErrorMsg('입력하신 주소를 지도에서 찾을 수 없습니다.');
         setIsLoading(false);
       }
     });
   };
 
+  const handleSearchClick = () => runSearch(address);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') handleSearch();
+    if (e.key === 'Enter') runSearch(address);
   };
 
   const YnBadge = ({ val, label }: { val?: string; label: string }) => {
@@ -170,19 +280,41 @@ export default function BuildingView() {
           className="flex-1 bg-surface-container border border-outline-variant/30 rounded-xl px-4 py-3 text-on-surface shadow-sm placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-bold"
         />
         <button 
-          onClick={handleSearch}
+          type="button"
+          onClick={handleSearchClick}
           disabled={isLoading || !address.trim()}
           className="bg-primary text-on-primary px-6 py-3 rounded-xl font-bold hover:bg-primary/80 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2"
         >
           {isLoading ? <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span> : <span className="material-symbols-outlined text-[20px]">search</span>}
           검색
         </button>
+        {bldgInfo && (
+          <button
+            type="button"
+            onClick={() => runSearch(address, true)}
+            disabled={isLoading || !address.trim()}
+            className="bg-error/10 text-error px-4 py-3 rounded-xl font-bold hover:bg-error/20 transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-2"
+            title="새로고침 (강제 데이터 갱신)"
+          >
+            <span className={`material-symbols-outlined text-[20px] ${isLoading ? 'animate-spin' : ''}`}>refresh</span>
+          </button>
+        )}
       </div>
 
       {errorMsg && (
         <div className="max-w-2xl p-4 bg-error/10 border border-error/20 rounded-xl flex items-center gap-3">
           <span className="material-symbols-outlined text-error">error</span>
           <p className="text-sm font-bold text-error">{errorMsg}</p>
+        </div>
+      )}
+
+      {warningMsg && (
+        <div className="max-w-2xl bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warningMsg} 마지막으로 성공한 데이터를 표시 중입니다.</p>
+          </div>
         </div>
       )}
 
@@ -194,6 +326,7 @@ export default function BuildingView() {
               최근 조회 기록
             </h3>
             <button 
+              type="button"
               onClick={() => { setRecentSearches([]); localStorage.removeItem('119helper-building-recent'); }}
               className="text-xs text-on-surface-variant hover:text-error transition-colors font-medium border border-transparent hover:border-error/30 px-2 py-1 rounded-md"
             >
@@ -203,12 +336,13 @@ export default function BuildingView() {
           <div className="flex flex-wrap gap-2">
             {recentSearches.map((term, i) => (
               <button
+                type="button"
                 key={i}
-                onClick={() => handleSearch(term)}
+                onClick={() => runSearch(term)}
                 className="bg-surface-container-lowest border border-outline-variant/20 hover:border-primary/50 px-3 py-1.5 rounded-lg text-sm text-on-surface transition-all flex items-center gap-1.5 group shadow-sm hover:shadow-md hover:-translate-y-0.5"
               >
                 <span className="material-symbols-outlined text-[14px] text-outline-variant group-hover:text-primary transition-colors">schedule</span>
-                {term}
+                {term.address}
               </button>
             ))}
           </div>
@@ -250,8 +384,8 @@ export default function BuildingView() {
           <div className="flex items-center gap-3 border-b border-outline-variant/10 pb-4">
             <span className="material-symbols-outlined text-3xl text-orange-400">local_fire_department</span>
             <div>
-              <h3 className="text-lg font-extrabold text-on-surface">숙박시설 소방시설 현황</h3>
-              <p className="text-xs text-on-surface-variant">해당 지역 특정소방대상물(숙박시설)의 스프링클러 등 소방시설 설치 현황</p>
+              <h3 className="text-lg font-extrabold text-on-surface">시·도 단위 숙박시설 소방시설 참고</h3>
+              <p className="text-xs text-on-surface-variant">해당 건물이 아닌, 검색 지역 내 공개 데이터 일부를 표시합니다. 검색한 건물의 소방시설 정보와 직접 일치하지 않을 수 있습니다.</p>
             </div>
           </div>
           

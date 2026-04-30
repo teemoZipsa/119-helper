@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getStaticHolidays } from '../data/holidays';
-import { getShiftForDate, type ShiftSetting } from '../utils/shiftCalculator';
+import { getShiftForDate, SHIFT_CYCLE_DANGBIBI, type ShiftSetting } from '../utils/shiftCalculator';
 
 interface Schedule {
   id: string;
@@ -19,16 +19,74 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+const isValidSchedule = (value: any): value is Schedule => {
+  return (
+    value &&
+    typeof value.id === 'string' &&
+    typeof value.date === 'string' &&
+    typeof value.title === 'string' &&
+    ['근무', '점검', '교육', '기타'].includes(value.type) &&
+    typeof value.memo === 'string'
+  );
+};
 
+const loadSchedules = (): Schedule[] => {
+  try {
+    const saved = localStorage.getItem('119helper-schedules');
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed.filter(isValidSchedule) : [];
+  } catch {
+    return [];
+  }
+};
+
+const isValidShiftSetting = (value: any): value is ShiftSetting => {
+  return (
+    value &&
+    typeof value.isActive === 'boolean' &&
+    typeof value.baseDate === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value.baseDate) &&
+    SHIFT_CYCLE_DANGBIBI.includes(value.baseShift)
+  );
+};
+
+const generateICS = (schedulesToExport: Schedule[]) => {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//119Helper//KO',
+    'CALSCALE:GREGORIAN',
+  ];
+
+  schedulesToExport.forEach(s => {
+    const dtstart = s.date.replace(/-/g, '');
+    
+    // For all-day events, DTEND is DTSTART + 1 day
+    const [y, m, d] = s.date.split('-').map(Number);
+    const endDate = new Date(y, m - 1, d + 1);
+    const dtend = `${endDate.getFullYear()}${String(endDate.getMonth() + 1).padStart(2, '0')}${String(endDate.getDate()).padStart(2, '0')}`;
+
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${s.id}@119helper.local`,
+      `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+      `DTSTART;VALUE=DATE:${dtstart}`,
+      `DTEND;VALUE=DATE:${dtend}`,
+      `SUMMARY:[${s.type}] ${s.title}`,
+      `DESCRIPTION:${s.memo.replace(/\n/g, '\\n')}`,
+      'END:VEVENT'
+    );
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+};
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [schedules, setSchedules] = useState<Schedule[]>(() => {
-    try {
-      const saved = localStorage.getItem('119helper-schedules');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [schedules, setSchedules] = useState<Schedule[]>(loadSchedules);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<Schedule['type']>('점검');
@@ -40,29 +98,21 @@ export default function Calendar() {
     const loadSetting = () => {
       try {
         const saved = localStorage.getItem('119helper-shift-setting');
-        if (saved) setShiftSetting(JSON.parse(saved));
-        else setShiftSetting(null);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setShiftSetting(isValidShiftSetting(parsed) ? parsed : null);
+        } else setShiftSetting(null);
       } catch {
-        // ignore error
+        setShiftSetting(null);
       }
     };
     loadSetting();
-    // Setting Modal doesn't trigger 'storage' event in the same window standardly, 
-    // so we listen to it or you can just rely on the user refreshing/navigating, 
-    // but a custom event is best.
     const handleCustomChange = () => loadSetting();
     window.addEventListener('119helper-settings-updated', handleCustomChange);
-    // Polling as fallback (since modal is global and we don't have Redux)
-    const interval = setInterval(loadSetting, 2000);
     return () => {
       window.removeEventListener('119helper-settings-updated', handleCustomChange);
-      clearInterval(interval);
     };
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('119helper-schedules', JSON.stringify(schedules));
-  }, [schedules]);
 
   useEffect(() => {
     localStorage.setItem('119helper-schedules', JSON.stringify(schedules));
@@ -79,9 +129,21 @@ export default function Calendar() {
   // 공휴일 데이터 — 정적 데이터에서 즉시 로드 (API 불필요)
   const holidays = getStaticHolidays(year, month + 1);
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-  const goToday = () => setCurrentDate(new Date());
+  const prevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+    setSelectedDate(null);
+  };
+  const nextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+    setSelectedDate(null);
+  };
+  const goToday = () => {
+    const now = new Date();
+    setCurrentDate(now);
+    setSelectedDate(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    );
+  };
 
   const dateStr = (day: number) =>
     `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -91,7 +153,7 @@ export default function Calendar() {
 
   // Calculate shift for a given date
   const getShift = (day: number): string | null => {
-    if (!shiftSetting) return null;
+    if (!shiftSetting?.isActive) return null;
     return getShiftForDate(dateStr(day), shiftSetting);
   };
 
@@ -104,23 +166,50 @@ export default function Calendar() {
     return 'text-primary bg-primary/10';
   };
 
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setNewTitle('');
+    setNewMemo('');
+    setNewType('점검');
+  };
+
   const addSchedule = () => {
     if (!selectedDate || !newTitle.trim()) return;
     const schedule: Schedule = {
-      id: Date.now().toString(),
+      id: window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       date: selectedDate,
       title: newTitle.trim(),
       type: newType,
       memo: newMemo.trim(),
     };
     setSchedules([...schedules, schedule]);
-    setNewTitle('');
-    setNewMemo('');
-    setShowAddModal(false);
+    closeAddModal();
   };
 
   const deleteSchedule = (id: string) => {
     setSchedules(schedules.filter(s => s.id !== id));
+  };
+
+  const exportICS = (type: 'all' | 'month') => {
+    let targets = schedules;
+    if (type === 'month') {
+      const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+      targets = schedules.filter(s => s.date.startsWith(prefix));
+    }
+    
+    if (targets.length === 0) {
+      alert('내보낼 일정이 없습니다.');
+      return;
+    }
+
+    const icsContent = generateICS(targets);
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = type === 'all' ? '119helper-schedules-all.ics' : `119helper-schedules-${year}-${String(month + 1).padStart(2, '0')}.ics`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const selectedSchedules = selectedDate
@@ -129,10 +218,34 @@ export default function Calendar() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-on-surface font-headline">📅 달력 / 일정</h2>
           <p className="text-sm text-on-surface-variant mt-1">근무·점검·교육 일정 관리</p>
+        </div>
+        <div className="flex flex-col items-start sm:items-end w-full sm:w-auto">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => exportICS('month')}
+              className="text-xs font-bold px-3 py-1.5 bg-surface-container border border-outline-variant/20 rounded-lg hover:bg-surface-container-high transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">download</span>
+              {month + 1}월 내보내기
+            </button>
+            <button
+              type="button"
+              onClick={() => exportICS('all')}
+              className="text-xs font-bold px-3 py-1.5 bg-secondary text-on-secondary rounded-lg hover:bg-secondary/90 transition-colors flex items-center gap-1 shadow-sm shadow-secondary/20"
+            >
+              <span className="material-symbols-outlined text-sm">cloud_download</span>
+              전체 내보내기 (.ics)
+            </button>
+          </div>
+          <p className="text-[10px] text-error font-medium mt-1.5 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[10px]">warning</span>
+            구글 캘린더 가져오기 시 <b>자동 동기화되지 않으며</b>, 중복 가져오기에 주의하세요.
+          </p>
         </div>
       </div>
 
@@ -142,17 +255,17 @@ export default function Calendar() {
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-outline-variant/10">
             <div className="flex items-center gap-3">
-              <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
+              <button type="button" onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
                 <span className="material-symbols-outlined text-on-surface-variant">chevron_left</span>
               </button>
               <h3 className="text-xl font-bold text-on-surface font-headline min-w-[140px] text-center">
                 {year}년 {month + 1}월
               </h3>
-              <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
+              <button type="button" onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-surface-container transition-colors">
                 <span className="material-symbols-outlined text-on-surface-variant">chevron_right</span>
               </button>
             </div>
-            <button onClick={goToday} className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-colors">
+            <button type="button" onClick={goToday} className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-colors">
               오늘
             </button>
           </div>
@@ -188,6 +301,7 @@ export default function Calendar() {
               return (
                 <button
                   key={day}
+                  type="button"
                   onClick={() => setSelectedDate(ds)}
                   className={`min-h-[90px] p-1.5 text-left border-b border-r border-outline-variant/5 transition-colors relative
                     ${isSelected ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-surface-container/50'}
@@ -270,6 +384,7 @@ export default function Calendar() {
               </h4>
               {selectedDate && (
                 <button
+                  type="button"
                   onClick={() => setShowAddModal(true)}
                   className="text-xs bg-primary text-on-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/80 transition-colors flex items-center gap-1"
                 >
@@ -292,6 +407,7 @@ export default function Calendar() {
                             {s.memo && <p className="text-xs text-on-surface-variant mt-1">{s.memo}</p>}
                           </div>
                           <button
+                            type="button"
                             onClick={() => deleteSchedule(s.id)}
                             className="opacity-0 group-hover:opacity-100 transition-opacity"
                           >
@@ -327,7 +443,7 @@ export default function Calendar() {
 
       {/* Add Schedule Modal */}
       {showAddModal && selectedDate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={closeAddModal}>
           <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6 w-[420px] shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-on-surface mb-4">
               📅 일정 추가 — {selectedDate.split('-')[1]}월 {selectedDate.split('-')[2]}일
@@ -341,6 +457,7 @@ export default function Calendar() {
                     return (
                       <button
                         key={t}
+                        type="button"
                         onClick={() => setNewType(t)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                           newType === t
@@ -376,10 +493,15 @@ export default function Calendar() {
                 />
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 rounded-lg border border-outline-variant/20 text-on-surface-variant text-sm font-bold hover:bg-surface-container transition-colors">
+                <button type="button" onClick={closeAddModal} className="flex-1 py-2.5 rounded-lg border border-outline-variant/20 text-on-surface-variant text-sm font-bold hover:bg-surface-container transition-colors">
                   취소
                 </button>
-                <button onClick={addSchedule} className="flex-1 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-bold hover:bg-primary/80 transition-colors">
+                <button
+                  type="button"
+                  onClick={addSchedule}
+                  disabled={!newTitle.trim()}
+                  className="flex-1 py-2.5 rounded-lg bg-primary text-on-primary text-sm font-bold hover:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   추가
                 </button>
               </div>

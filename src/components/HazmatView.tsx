@@ -7,11 +7,19 @@ const PALETTE = [
   '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
 ];
 
+type DonutSegment = {
+  label: string;
+  value: number;
+  color: string;
+  pct: number;
+  start: number;
+};
+
 /* ─── 도넛 차트 (순수 CSS) ─── */
 function DonutChart({ slices, total }: { slices: { label: string; value: number; color: string }[]; total: number }) {
   if (total === 0) return <p className="text-xs text-on-surface-variant text-center py-8">데이터 없음</p>;
 
-  const segments = slices.filter(s => s.value > 0).reduce((acc: any[], s, i) => {
+  const segments = slices.filter(s => s.value > 0).reduce<DonutSegment[]>((acc, s, i) => {
     const pct = (s.value / total) * 100;
     const start = acc.length > 0 ? acc[acc.length - 1].start + acc[acc.length - 1].pct : 0;
     acc.push({ ...s, pct, start, color: s.color || PALETTE[i % PALETTE.length] });
@@ -47,8 +55,20 @@ function DonutChart({ slices, total }: { slices: { label: string; value: number;
 export default function HazmatView() {
   const [selectedDept, setSelectedDept] = useState<string>('합계');
 
-  const allDepts = HAZMAT_FACILITY_DATA.filter(d => d.fireDept !== '합계');
-  const summary = HAZMAT_FACILITY_DATA.find(d => d.fireDept === '합계')!;
+  const allDepts = useMemo(
+    () => HAZMAT_FACILITY_DATA.filter(d => d.fireDept !== '합계'),
+    []
+  );
+  const summary = HAZMAT_FACILITY_DATA.find(d => d.fireDept === '합계') ?? HAZMAT_FACILITY_DATA[0];
+
+  if (!summary) {
+    return (
+      <div className="text-error bg-surface-container-lowest rounded-xl p-6">
+        위험물시설 데이터를 불러올 수 없습니다.
+      </div>
+    );
+  }
+
   const selected: HazmatFacilityStats = HAZMAT_FACILITY_DATA.find(d => d.fireDept === selectedDept) || summary;
 
   // 대분류 도넛 데이터

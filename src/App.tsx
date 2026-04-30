@@ -31,7 +31,7 @@ import EquipmentCertSearch from './components/EquipmentCertSearch';
 import { loadNotificationSettings } from './services/notificationSettings';
 import { fetchDisasterMsgs } from './services/disasterMsgApi';
 
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'fire-damage' | 'hazards' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'law' | 'checklist' | 'equipment-cert';
+import type { TabId, NavigateTarget } from './types/navigation';
 type ShelterCategory = 'building' | 'hydrants' | 'waterTowers' | 'civil' | 'tsunami' | 'restrooms';
 
 // 알림 시스템 타입
@@ -123,6 +123,21 @@ function formatTimeAgo(date: Date): string {
   return `${Math.floor(diff / 86400)}일 전`;
 }
 
+function getSafeRefreshInterval() {
+  const raw = Number.parseInt(localStorage.getItem('119helper-refresh') || '5', 10);
+  if (!Number.isFinite(raw) || raw < 0) return 5;
+  return raw;
+}
+
+function getTabLabel(tab: TabId | string) {
+  for (const item of NAV_ITEMS) {
+    if (item.id === tab) return item.label;
+    const sub = item.subItems?.find(s => s.id === tab);
+    if (sub) return sub.label;
+  }
+  return '대시보드';
+}
+
 /* ─────────── Main App ─────────── */
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
@@ -139,8 +154,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notiOpen, setNotiOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [refreshInterval, setRefreshInterval] = useState(() => parseInt(localStorage.getItem('119helper-refresh') || '5'));
+  const [refreshInterval, setRefreshInterval] = useState(getSafeRefreshInterval);
   const lastRefreshRef = useRef<Date>(new Date());
+  const refreshSeqRef = useRef(0);
   const [regionOpen, setRegionOpen] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -220,6 +236,9 @@ export default function App() {
   const handleCityChange = (newCity: string) => {
     setCity(newCity);
     localStorage.setItem('119helper-city', newCity);
+    setSelectedDistrict(null);
+    setCityIndex(null);
+    setFireFacilities([]);
   };
 
   const addNotification = useCallback((id: string | undefined, icon: string, iconColor: string, title: string, message: string) => {
@@ -265,35 +284,45 @@ export default function App() {
   }, []);
 
   // 구별 데이터 로드 (분할 도시 전용)
-  const loadDistrict = useCallback(async (district: string) => {
+  const loadDistrict = useCallback((district: string) => {
     setSelectedDistrict(district);
-    setIsLoadingFacilities(true);
-    try {
-      const items = await fetchFireWaterFacilities(city, district);
-      setFireFacilities(parseItems(items));
-    } catch { /* silently fail */ }
-    setIsLoadingFacilities(false);
-  }, [city, parseItems]);
+  }, []);
 
   // 데이터 갱신 함수
   const refreshData = useCallback(async () => {
+    const seq = ++refreshSeqRef.current;
+
     // 소방용수 — 분할 도시는 메타(index)만, 비분할 도시는 전체 로드
     setIsLoadingFacilities(true);
-    setSelectedDistrict(null);
     try {
       if (isSplitCity(city)) {
-        // 분할 도시: index.json만 로드 (1KB) → 건수만 표시
         const idx = await fetchCityIndex(city);
+        if (seq !== refreshSeqRef.current) return;
         setCityIndex(idx);
-        setFireFacilities([]); // 구 선택 전까지 빈 배열
+        if (selectedDistrict) {
+          const items = await fetchFireWaterFacilities(city, selectedDistrict);
+          if (seq !== refreshSeqRef.current) return;
+          setFireFacilities(parseItems(items));
+        } else {
+          setFireFacilities([]);
+        }
       } else {
-        // 비분할 도시: 전체 로드 (기존 방식)
         setCityIndex(null);
+        setSelectedDistrict(null);
         const items = await fetchFireWaterFacilities(city);
+        if (seq !== refreshSeqRef.current) return;
         setFireFacilities(parseItems(items));
       }
-    } catch { /* silently fail */ }
-    setIsLoadingFacilities(false);
+    } catch (e) {
+      console.warn('[refreshData facilities] failed:', e);
+      addNotification('system-data-refresh-failed', 'warning', 'text-amber-500', '데이터 갱신 실패', '일부 현장 데이터가 최신 상태가 아닐 수 있습니다.');
+    } finally {
+      if (seq === refreshSeqRef.current) {
+        setIsLoadingFacilities(false);
+      }
+    }
+
+    if (seq !== refreshSeqRef.current) return;
 
     // 기상 알림 생성
     const ns = loadNotificationSettings();
@@ -302,6 +331,7 @@ export default function App() {
       try {
         const grid = CITY_GRIDS[city] || CITY_GRIDS.seoul;
         const items = await getUltraShortNow(grid.nx, grid.ny);
+        if (seq !== refreshSeqRef.current) return;
         if (items.length > 0) {
           const w = parseCurrentWeather(items);
           if (ns.weather.rain && w.precipType !== '없음' && w.precipType !== '눈') {
@@ -320,13 +350,16 @@ export default function App() {
             addNotification(undefined, 'air', 'text-teal-400', `💨 ${cityNames[city]} 강풍 주의`, `풍속 ${w.windSpeed}m/s (${w.windDirection}). 사다리차 운행 주의!`);
           }
         }
-      } catch { /* silently fail */ }
+      } catch (e) {
+        console.warn('[weather notification] failed:', e);
+      }
     }
 
     // 대기질 알림 생성
     if (ns.enabled && ns.airQuality.enabled) {
       try {
         const aq = await getRealtimeAirQuality(cityNames[city] || '서울');
+        if (seq !== refreshSeqRef.current) return;
         if (aq) {
           if (ns.airQuality.pm10Bad && parseInt(aq.pm10Grade) >= 3) {
             addNotification(undefined, 'masks', 'text-yellow-400', `⚠️ ${cityNames[city]} 미세먼지 나쁨`, `PM10: ${aq.pm10Value}μg/m³. 현장 활동 시 방진마스크 착용 권장.`);
@@ -335,13 +368,16 @@ export default function App() {
             addNotification(undefined, 'blur_circular', 'text-orange-400', `⚠️ ${cityNames[city]} 초미세먼지 나쁨`, `PM2.5: ${aq.pm25Value}μg/m³. 호흡기 보호구 착용 필수.`);
           }
         }
-      } catch { /* silently fail */ }
+      } catch (e) {
+        console.warn('[air quality notification] failed:', e);
+      }
     }
 
     // 재난 문자 및 산불 알림 생성
     if (ns.enabled && (ns.disaster.enabled || ns.wildfire.enabled)) {
       try {
         const msgs = await fetchDisasterMsgs();
+        if (seq !== refreshSeqRef.current) return;
         if (msgs && msgs.length > 0) {
           // 최신순으로 정렬된 데이터를 과거 데이터부터 처리하여 가장 최신이 마지막에 오도록 (상단에 위치하도록)
           [...msgs].reverse().forEach(msg => {
@@ -352,9 +388,9 @@ export default function App() {
               // 산불 로직
               if (ns.wildfire.enabled && text.includes('산불')) {
                 if (ns.wildfire.newFire && text.includes('발생')) {
-                  addNotification(msg.md101_sn, 'whatshot', 'text-orange-500', `🔥 ${kname} 산불 발생`, text);
+                  addNotification(`${msg.md101_sn}-wildfire`, 'whatshot', 'text-orange-500', `🔥 ${kname} 산불 발생`, text);
                 } else if (ns.wildfire.levelChange) {
-                  addNotification(msg.md101_sn, 'trending_up', 'text-red-500', `🔥 ${kname} 산불 주의/경보`, text);
+                  addNotification(`${msg.md101_sn}-wildfire`, 'trending_up', 'text-red-500', `🔥 ${kname} 산불 주의/경보`, text);
                 }
               }
 
@@ -362,19 +398,23 @@ export default function App() {
               if (ns.disaster.enabled) {
                 const isEmergency = msg.msgType?.includes('긴급') || text.includes('지진') || text.includes('대피');
                 if (isEmergency && ns.disaster.emergencyAll) {
-                  addNotification(msg.md101_sn, 'emergency', 'text-red-600', `🚨 ${kname} 긴급재난문자`, text);
+                  addNotification(`${msg.md101_sn}-disaster`, 'emergency', 'text-red-600', `🚨 ${kname} 긴급재난문자`, text);
                 } else if (!isEmergency && ns.disaster.safetyAlert && !text.includes('산불')) {
-                  addNotification(msg.md101_sn, 'health_and_safety', 'text-amber-500', `📣 ${kname} 안전안내문자`, text);
+                  addNotification(`${msg.md101_sn}-safety`, 'health_and_safety', 'text-amber-500', `📣 ${kname} 안전안내문자`, text);
                 }
               }
             }
           });
         }
-      } catch { /* silently fail */ }
+      } catch (e) {
+        console.warn('[disaster notification] failed:', e);
+      }
     }
 
-    lastRefreshRef.current = new Date();
-  }, [city, addNotification]);
+    if (seq === refreshSeqRef.current) {
+      lastRefreshRef.current = new Date();
+    }
+  }, [city, selectedDistrict, parseItems, addNotification]);
 
   // 최초 + city 변경 시 데이터 로드
   useEffect(() => {
@@ -393,19 +433,19 @@ export default function App() {
   // localStorage 변경 감지 (설정 저장 시)
   useEffect(() => {
     const handleStorage = () => {
-      const val = parseInt(localStorage.getItem('119helper-refresh') || '5');
+      const val = getSafeRefreshInterval();
       setRefreshInterval(val);
     };
     window.addEventListener('storage', handleStorage);
     // 같은 탭에서도 감지하기 위해 폴링
     const pollId = setInterval(() => {
-      const val = parseInt(localStorage.getItem('119helper-refresh') || '5');
+      const val = getSafeRefreshInterval();
       setRefreshInterval(prev => prev !== val ? val : prev);
     }, 2000);
     return () => { window.removeEventListener('storage', handleStorage); clearInterval(pollId); };
   }, []);
 
-  const handleNavigate = (tab: TabId, subId?: string) => {
+  const handleNavigate = (tab: NavigateTarget | string, subId?: string) => {
     // hydrants/waterTowers/building → shelter 탭으로 통합 매핑
     if (tab === 'hydrants' || tab === 'waterTowers' || tab === 'building') {
       setShelterCategory(tab as ShelterCategory);
@@ -414,7 +454,7 @@ export default function App() {
       setShelterCategory(subId as ShelterCategory);
       setActiveTab('shelter');
     } else {
-      setActiveTab(tab);
+      setActiveTab(tab as TabId);
     }
     setActiveSubId(subId);
     setSidebarOpen(false);
@@ -596,7 +636,7 @@ export default function App() {
             </button>
 
             <h2 className="text-sm font-bold text-on-surface font-headline capitalize shrink-0 hidden sm:block">
-              {NAV_ITEMS.find(n => n.id === activeTab)?.label || '대시보드'}
+              {getTabLabel(activeTab)}
             </h2>
 
             {/* Search */}
@@ -619,7 +659,7 @@ export default function App() {
               </button>
               
               {regionOpen && (
-                <div className="absolute top-full right-0 mt-2 w-32 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute top-full right-0 mt-2 w-32 bg-surface-container-high border border-outline-variant/20 rounded-xl shadow-2xl overflow-hidden z-50 animate-slide-in-top">
                   <div className="max-h-60 overflow-y-auto custom-scrollbar flex flex-col p-1">
                     {Object.entries(cityNames).map(([k, v]) => (
                       <button
@@ -654,7 +694,7 @@ export default function App() {
               
               {notiOpen && (
                 <div className="absolute right-0 top-full mt-2 z-50 p-2">
-                  <div className="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-xl w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-xl w-[320px] overflow-hidden animate-slide-in-top">
                     <div className="p-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container">
                       <h2 className="text-sm font-bold text-on-surface flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-primary text-[18px]">notifications_active</span>

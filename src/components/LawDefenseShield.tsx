@@ -1,16 +1,16 @@
 import { useState, useMemo } from 'react';
-import { ShieldAlert, FileText, Siren, Gavel, FileCheck } from 'lucide-react';
+import { ShieldAlert, FileText, Siren, Gavel, FileCheck, type LucideIcon } from 'lucide-react';
 import { LAW_DEFENSE_DOCS, type DefenseCategory, type LawDefenseDoc } from '../data/lawDefenseDocs';
 
 export default function LawDefenseShield() {
   const [activeCategory, setActiveCategory] = useState<DefenseCategory | 'ALL'>('ALL');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const categories: { id: DefenseCategory | 'ALL'; label: string; icon: any }[] = [
+  const categories: { id: DefenseCategory | 'ALL'; label: string; icon: LucideIcon }[] = [
     { id: 'ALL', label: '전체 보기', icon: ShieldAlert },
     { id: '강제처분', label: '강제처분/파손 면책', icon: Gavel },
     { id: '구급면책', label: '구급대원 방어권', icon: FileCheck },
-    { id: '주취자방어', label: '주취자동폭행 방어', icon: Siren },
+    { id: '주취자방어', label: '주취자 폭행 대응', icon: Siren },
   ];
 
   const filteredDocs = useMemo(() => {
@@ -22,8 +22,8 @@ export default function LawDefenseShield() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <p className="text-sm text-on-surface-variant leading-relaxed">
-          현장에서 주저하는 1초가 생명을 앗아갈 수 있습니다. <br className="hidden sm:block"/>
-          이곳의 매뉴얼에 따라 행동하셨다면, 구상권 청구 및 소송으로부터 <strong className="text-amber-600 dark:text-amber-400">100% 면책 및 기관 차원의 보호</strong>를 받으실 수 있습니다.
+          긴급한 현장 판단을 돕기 위한 법령·판례 참고 자료입니다. <br className="hidden sm:block"/>
+          <strong className="text-amber-600 dark:text-amber-400">실제 면책 및 법적 책임 여부</strong>는 상황별 사실관계, 절차 준수 여부, 사후 기록에 따라 달라질 수 있습니다.
         </p>
       </div>
 
@@ -35,7 +35,12 @@ export default function LawDefenseShield() {
           return (
             <button
               key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => {
+                setActiveCategory(cat.id);
+                setExpandedId(null);
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                 isActive
                   ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 scale-105'
@@ -62,6 +67,8 @@ export default function LawDefenseShield() {
               }`}
             >
               <button
+                type="button"
+                aria-expanded={isExpanded}
                 onClick={() => setExpandedId(isExpanded ? null : doc.id)}
                 className="w-full text-left p-5 flex items-start gap-4"
               >
@@ -101,7 +108,7 @@ export default function LawDefenseShield() {
                   <div>
                     <h4 className="text-sm font-bold text-on-surface mb-2 flex items-center gap-1.5">
                       <FileText size={16} className="text-amber-500" />
-                      근거 법령 및 면책 원리
+                      근거 법령 및 판단 기준
                     </h4>
                     <div className="p-4 bg-surface-container rounded-xl text-sm leading-relaxed text-on-surface border-l-2 border-amber-500">
                       {doc.fullText.split('\n').map((line, i) => <p key={i} className="mb-1 last:mb-0">{line}</p>)}
@@ -112,10 +119,10 @@ export default function LawDefenseShield() {
                   <div>
                     <h4 className="text-sm font-bold text-on-surface mb-2 flex items-center gap-1.5">
                       <Gavel size={16} className="text-emerald-500" />
-                      승소 및 면책 판례
+                      관련 판례·사례 참고
                     </h4>
                     <div className="p-4 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-xl text-sm leading-relaxed text-emerald-900 dark:text-emerald-100 border border-emerald-500/20">
-                      <strong>실제 사례: </strong> {doc.winPrecedent}
+                      <strong>참고 사례: </strong> {doc.winPrecedent}
                     </div>
                   </div>
 
@@ -123,7 +130,7 @@ export default function LawDefenseShield() {
                   <div>
                     <h4 className="text-sm font-bold text-on-surface mb-2 flex items-center gap-1.5">
                       <Siren size={16} className="text-red-500" />
-                      현장 즉각 행동 매뉴얼 (대응 수칙)
+                      현장 대응 참고 수칙
                     </h4>
                     <div className="bg-surface-container rounded-xl border border-outline-variant/20 overflow-hidden">
                       {doc.actionManual.map((step, idx) => (
@@ -138,6 +145,30 @@ export default function LawDefenseShield() {
                       ))}
                     </div>
                   </div>
+
+                  {/* 메타데이터 (출처, 기준일 등) */}
+                  {(doc.source || doc.caseNumber || doc.lastReviewed) && (
+                    <div className="pt-2 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-on-surface-variant/70 border-t border-outline-variant/10 mt-4">
+                      {doc.source && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">link</span>
+                          출처: {doc.source}
+                        </span>
+                      )}
+                      {doc.caseNumber && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">balance</span>
+                          사건번호: {doc.caseNumber}
+                        </span>
+                      )}
+                      {doc.lastReviewed && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">update</span>
+                          기준일: {doc.lastReviewed}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

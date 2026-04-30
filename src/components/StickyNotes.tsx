@@ -246,7 +246,7 @@ export default function StickyNotes({ embedMode = false }: StickyNotesProps) {
         </div>
         
         {showMemo && (
-          <div className="p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300 bg-surface/30">
+          <div className="p-3 md:p-4 animate-slide-in-top bg-surface/30">
             {renderContent()}
           </div>
         )}

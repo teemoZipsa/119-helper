@@ -3,8 +3,8 @@ import { useTimer, type TimerState } from '../contexts/TimerContext';
 
 // ─── 타이머 프리셋 ───
 const PRESETS = [
-  { label: '30분', seconds: 30 * 60, desc: '공기호흡기 (6.8L)', color: 'bg-green-500', icon: 'air' },
-  { label: '45분', seconds: 45 * 60, desc: '공기호흡기 (9L)', color: 'bg-blue-500', icon: 'air' },
+  { label: '30분', seconds: 30 * 60, desc: '공기호흡기 참고값', color: 'bg-green-500', icon: 'air' },
+  { label: '45분', seconds: 45 * 60, desc: '장시간 활동 참고값', color: 'bg-blue-500', icon: 'air' },
   { label: '60분', seconds: 60 * 60, desc: '장시간 작전', color: 'bg-purple-500', icon: 'schedule' },
   { label: '15분', seconds: 15 * 60, desc: '교대 알림', color: 'bg-orange-500', icon: 'swap_horiz' },
   { label: '사용자', seconds: 0, desc: '직접 설정', color: 'bg-gray-500', icon: 'tune' },
@@ -23,16 +23,19 @@ export default function FieldTimer() {
   const [showPresets, setShowPresets] = useState(timers.length === 0);
 
   const handleAddTimer = (seconds: number, label: string) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
     addTimer(seconds, label);
     setShowPresets(false);
   };
 
   const getTimerColor = (t: TimerState) => {
-    if (t.remaining <= 0) return { ring: 'ring-red-500', bg: 'bg-red-500/20', text: 'text-red-400', label: '종료' };
+    if (t.totalSeconds <= 0 || t.remaining <= 0) {
+      return { ring: 'ring-red-500', border: 'border-red-500/40', bg: 'bg-red-500/20', text: 'text-red-400', label: '종료' };
+    }
     const ratio = t.remaining / t.totalSeconds;
-    if (ratio <= DANGER_THRESHOLD) return { ring: 'ring-red-500 animate-pulse', bg: 'bg-red-500/20', text: 'text-red-400', label: '위험' };
-    if (ratio <= WARN_THRESHOLD) return { ring: 'ring-yellow-500', bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: '경고' };
-    return { ring: 'ring-green-500/30', bg: 'bg-green-500/10', text: 'text-green-400', label: '정상' };
+    if (ratio <= DANGER_THRESHOLD) return { ring: 'ring-red-500 animate-pulse', border: 'border-red-500/40', bg: 'bg-red-500/20', text: 'text-red-400', label: '위험' };
+    if (ratio <= WARN_THRESHOLD) return { ring: 'ring-yellow-500', border: 'border-yellow-500/40', bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: '경고' };
+    return { ring: 'ring-green-500/30', border: 'border-green-500/20', bg: 'bg-green-500/10', text: 'text-green-400', label: '정상' };
   };
 
   const copyReport = async () => {
@@ -51,7 +54,11 @@ export default function FieldTimer() {
       text += `⏳ 타이머 기록:\n`;
       timers.forEach(t => {
         const used = t.totalSeconds - t.remaining;
-        text += `  - ${t.label}: ${formatTime(used)} 사용 / ${formatTime(t.totalSeconds)} 중\n`;
+        const status =
+          t.remaining <= 0 ? '종료' :
+          t.isRunning ? '진행 중' :
+          '일시정지';
+        text += `  - ${t.label}: ${formatTime(used)} 사용 / ${formatTime(t.totalSeconds)} 중 (${status})\n`;
       });
     }
 
@@ -63,8 +70,13 @@ export default function FieldTimer() {
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand('copy');
+      const ok = document.execCommand('copy');
       document.body.removeChild(ta);
+      if (ok) {
+        alert('활동 기록이 복사되었습니다.');
+      } else {
+        alert('복사에 실패했습니다. 기록을 직접 선택해 복사해 주세요.');
+      }
     }
   };
 
@@ -86,14 +98,14 @@ export default function FieldTimer() {
           </div>
           <div className="flex gap-2">
             {!showPresets && (
-              <button onClick={() => setShowPresets(true)}
+              <button type="button" onClick={() => setShowPresets(true)}
                 className="bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-lg">add_alarm</span>
                 추가
               </button>
             )}
             {(timers.length > 0 || laps.length > 0) && (
-              <button onClick={copyReport}
+              <button type="button" onClick={copyReport}
                 className="bg-surface-container text-on-surface-variant px-3 py-2 rounded-lg text-sm font-bold hover:bg-surface-container-high transition-colors flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-lg">content_copy</span>
                 기록 복사
@@ -114,6 +126,7 @@ export default function FieldTimer() {
             {PRESETS.map(preset => (
               <button
                 key={preset.label}
+                type="button"
                 onClick={() => {
                   if (preset.seconds === 0) {
                     handleAddTimer(customMinutes * 60, `${customMinutes}분`);
@@ -140,11 +153,17 @@ export default function FieldTimer() {
               type="range"
               min={1} max={120} step={1}
               value={customMinutes}
-              onChange={e => setCustomMinutes(parseInt(e.target.value))}
+              onChange={e => {
+                const value = Number.parseInt(e.target.value, 10);
+                setCustomMinutes(Number.isFinite(value) ? value : 20);
+              }}
               className="flex-1 accent-primary"
             />
             <span className="text-sm font-bold text-primary w-12 text-right">{customMinutes}분</span>
           </div>
+          <p className="text-[11px] text-on-surface-variant mt-3 leading-relaxed">
+            ※ 현장 타이머는 참고용입니다. 실제 철수·교대 판단은 장비 경보, 잔압, 지휘 지침을 우선하세요.
+          </p>
         </div>
       )}
 
@@ -175,11 +194,11 @@ export default function FieldTimer() {
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-on-surface-variant text-lg">air</span>
                   <span className="text-sm font-bold text-on-surface">{t.label}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${color.bg} ${color.text} border ${color.ring}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${color.bg} ${color.text} border ${color.border}`}>
                     {color.label}
                   </span>
                 </div>
-                <button onClick={() => { removeTimer(t.id); if(timers.length <= 1) setShowPresets(true); }} className="text-on-surface-variant hover:text-red-400 transition-colors">
+                <button type="button" onClick={() => { removeTimer(t.id); if(timers.length <= 1) setShowPresets(true); }} className="text-on-surface-variant hover:text-red-400 transition-colors">
                   <span className="material-symbols-outlined text-lg">close</span>
                 </button>
               </div>
@@ -197,6 +216,7 @@ export default function FieldTimer() {
               {/* 컨트롤 */}
               <div className="flex gap-3 justify-center">
                 <button
+                  type="button"
                   onClick={() => toggleTimer(t.id)}
                   className={`px-8 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg ${
                     t.isRunning
@@ -213,6 +233,7 @@ export default function FieldTimer() {
                   {t.isRunning ? '일시정지' : t.remaining <= 0 ? '종료됨' : '시작'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => resetTimer(t.id)}
                   className="px-4 py-3 rounded-xl text-sm font-bold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors flex items-center gap-1.5"
                 >
@@ -253,6 +274,7 @@ export default function FieldTimer() {
           {/* 컨트롤 */}
           <div className="flex gap-3 justify-center mb-4">
             <button
+              type="button"
               onClick={toggleStopwatch}
               className={`px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg ${
                 stopwatchRunning
@@ -267,6 +289,7 @@ export default function FieldTimer() {
             </button>
             {stopwatchStart && (
               <button
+                type="button"
                 onClick={resetStopwatch}
                 className="px-4 py-3 rounded-xl text-sm font-bold bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors"
               >
@@ -281,6 +304,7 @@ export default function FieldTimer() {
               {['현장 도착', '진압 시작', '진압 완료', '인명 구조', '귀서'].map(label => (
                 <button
                   key={label}
+                  type="button"
                   onClick={() => addLap(label)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                 >

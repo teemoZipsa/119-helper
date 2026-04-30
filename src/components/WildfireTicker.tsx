@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchWildfires, type WildfireItem } from '../services/wildfireApi';
 
-export const WildfireTicker: React.FC<{ cityName?: string }> = ({ cityName }) => {
+export const WildfireTicker: React.FC<{ cityName?: string; onClick?: () => void }> = ({ cityName, onClick }) => {
   const [ongoingFires, setOngoingFires] = useState<WildfireItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -9,8 +9,9 @@ export const WildfireTicker: React.FC<{ cityName?: string }> = ({ cityName }) =>
     let isMounted = true;
     const loadFires = async () => {
       setIsLoading(true);
-      const data = await fetchWildfires('200', '1');
-      if (isMounted) {
+      try {
+        const data = await fetchWildfires('200', '1');
+        if (!isMounted) return;
         let ongoing = data.filter(f => f.isOngoing);
         if (cityName) {
           ongoing = ongoing.filter(f => {
@@ -21,7 +22,11 @@ export const WildfireTicker: React.FC<{ cityName?: string }> = ({ cityName }) =>
           });
         }
         setOngoingFires(ongoing);
-        setIsLoading(false);
+      } catch (err) {
+        console.warn('[WildfireTicker] failed:', err);
+        if (isMounted) setOngoingFires([]);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
     loadFires();
@@ -38,8 +43,8 @@ export const WildfireTicker: React.FC<{ cityName?: string }> = ({ cityName }) =>
   if (ongoingFires.length === 0) return null;
 
   return (
-    <div className="w-full bg-red-600 text-white px-4 py-2 mt-2 mb-4 rounded-lg shadow-md flex items-center overflow-hidden relative group cursor-pointer animate-pulse"
-         title="클릭 시 산불 현황 탭으로 이동 (미구현)">
+    <div onClick={onClick} className={`w-full bg-red-600 text-white px-4 py-2 mt-2 mb-4 rounded-lg shadow-md flex items-center overflow-hidden relative group animate-pulse ${onClick ? 'cursor-pointer' : ''}`}
+         title={onClick ? "클릭 시 산불 현황 탭으로 이동" : "진화 중인 산불 속보"}>
       <div className="flex-shrink-0 font-bold mr-3 hidden sm:block shrink-0 bg-white/20 px-2 py-0.5 rounded text-sm">
         🚨 산불 속보
       </div>
@@ -53,7 +58,7 @@ export const WildfireTicker: React.FC<{ cityName?: string }> = ({ cityName }) =>
         >
           {ongoingFires.map((fire) => (
             <span key={fire.id} className="mr-8">
-              [🔥진화중] {fire.address} ({fire.occurredAt.substring(5, 16)} 발생)
+              [🔥진화중] {fire.address} ({fire.occurredAt?.length >= 16 ? fire.occurredAt.substring(5, 16) : (fire.occurredAt || '시간 미상')} 발생)
             </span>
           ))}
         </div>

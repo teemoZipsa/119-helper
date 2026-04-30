@@ -5,6 +5,7 @@ import { ERG_CHEMICALS } from '../data/ergChemicals';
 export default function HazmatCalc() {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
+  const [mapError, setMapError] = useState('');
   
   // States
   const [selectedChem, setSelectedChem] = useState('UN1005');
@@ -26,24 +27,40 @@ export default function HazmatCalc() {
 
   // Initialize Kakao Map
   useEffect(() => {
-    if (!window.kakao || !window.kakao.maps || !mapRef.current) return;
-    
-    window.kakao.maps.load(() => {
-      const options = {
-        center: new window.kakao.maps.LatLng(originPoint?.lat || 37.5665, originPoint?.lng || 126.9780),
-        level: 4,
-      };
-      const initialMap = new window.kakao.maps.Map(mapRef.current, options);
-      setMap(initialMap);
+    let retryCount = 0;
 
-      // Map click event — uses ref to always get latest isSelectingOrigin
-      window.kakao.maps.event.addListener(initialMap, 'click', (mouseEvent: any) => {
-        if (!isSelectingRef.current) return;
-        const latlng = mouseEvent.latLng;
-        setOriginPoint({ lat: latlng.getLat(), lng: latlng.getLng() });
-        setIsSelectingOrigin(false);
+    const initMap = () => {
+      if (!mapRef.current) return;
+
+      if (!window.kakao?.maps) {
+        retryCount += 1;
+        if (retryCount > 20) {
+          setMapError('카카오 지도를 불러오지 못했습니다. 네트워크 또는 API 키를 확인하세요.');
+          return;
+        }
+        setTimeout(initMap, 300);
+        return;
+      }
+
+      window.kakao.maps.load(() => {
+        const options = {
+          center: new window.kakao.maps.LatLng(originPoint?.lat || 37.5665, originPoint?.lng || 126.9780),
+          level: 4,
+        };
+        const initialMap = new window.kakao.maps.Map(mapRef.current, options);
+        setMap(initialMap);
+
+        // Map click event — uses ref to always get latest isSelectingOrigin
+        window.kakao.maps.event.addListener(initialMap, 'click', (mouseEvent: any) => {
+          if (!isSelectingRef.current) return;
+          const latlng = mouseEvent.latLng;
+          setOriginPoint({ lat: latlng.getLat(), lng: latlng.getLng() });
+          setIsSelectingOrigin(false);
+        });
       });
-    });
+    };
+
+    initMap();
   }, []);
 
   // Set cursor when selecting
@@ -139,6 +156,12 @@ export default function HazmatCalc() {
 
     // Move map to center and zoom correctly if it's the first time or if requested
     // map.setCenter(centerPos);
+
+    return () => {
+      newMarker.setMap(null);
+      newCircle.setMap(null);
+      newPolygon.setMap(null);
+    };
   }, [map, originPoint, selectedChem, spillSize, windDirection]);
 
   // Center on current GPS
@@ -154,7 +177,21 @@ export default function HazmatCalc() {
     }
   };
 
+  const formatDistance = (m: number) => {
+    if (m >= 1000) return `${(m / 1000).toFixed(1)} km`;
+    return `${m.toLocaleString()} m`;
+  };
+
   const currentChem = ERG_CHEMICALS[selectedChem];
+
+  if (!currentChem) {
+    return (
+      <div className="bg-surface-container-lowest border border-error/30 rounded-xl p-6 text-error">
+        선택한 유해화학물질 데이터를 찾을 수 없습니다.
+      </div>
+    );
+  }
+
   const currentIsolation = spillSize === 'small' ? currentChem.isolationSmall : currentChem.isolationLarge;
   const currentProtection = spillSize === 'small' ? currentChem.protectionSmall : currentChem.protectionLarge;
 
@@ -209,9 +246,11 @@ export default function HazmatCalc() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-on-surface-variant mb-1 block">풍속 (m/s)</label>
+                <label className="text-xs font-bold text-on-surface-variant mb-1 block">풍속 (m/s) · 참고용</label>
                 <input 
                   type="number" 
+                  min={0}
+                  step={0.1}
                   value={windSpeed} 
                   onChange={e => setWindSpeed(e.target.value)}
                   className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:ring-2 focus:ring-orange-500/50"
@@ -221,6 +260,9 @@ export default function HazmatCalc() {
                 <label className="text-xs font-bold text-on-surface-variant mb-1 block">풍향 (풍배도, 도)</label>
                 <input 
                   type="number" 
+                  min={0}
+                  max={359}
+                  step={1}
                   value={windDirection} 
                   onChange={e => setWindDirection(e.target.value)}
                   placeholder="예: 북(0), 동(90)"
@@ -240,9 +282,13 @@ export default function HazmatCalc() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-on-surface-variant flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-orange-500/50 border-2 border-orange-500 border-dashed"></span> 풍하향 방호 구역</span>
-                <span className="text-base font-bold text-on-surface">{currentProtection / 1000} km</span>
+                <span className="text-base font-bold text-on-surface">{formatDistance(currentProtection)}</span>
               </div>
             </div>
+            <p className="text-[10px] text-on-surface-variant mt-3 leading-relaxed">
+              ※ 현재 계산은 ERG 기준 초기이격 및 방호거리와 풍향만 반영합니다. 풍속은 현장 판단 참고값입니다.<br />
+              ※ 주황색 영역은 풍하향 방호구역의 단순 시각화(원점 기준)입니다. 실제 통제선은 현장 지형·건물·기상 조건을 함께 고려하세요.
+            </p>
           </div>
         </div>
 
@@ -270,6 +316,11 @@ export default function HazmatCalc() {
             ref={mapRef} 
             className="w-full h-80 rounded-xl border border-outline-variant/20 overflow-hidden relative"
           >
+            {mapError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-container z-10 p-4 text-center">
+                <p className="text-sm text-error font-bold">{mapError}</p>
+              </div>
+            )}
             {/* Map renders here */}
           </div>
         </div>

@@ -64,6 +64,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const lastTickRef = useRef<number>(Date.now());
 
   const requestWakeLock = useCallback(async () => {
     try {
@@ -94,37 +95,50 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         Notification.requestPermission();
       }
 
+      lastTickRef.current = Date.now();
       intervalRef.current = setInterval(() => {
-        setTimers(prev => prev.map(t => {
-          if (!t.isRunning || t.remaining <= 0) return t;
-          const newRemaining = t.remaining - 1;
+        const now = Date.now();
+        const deltaSec = Math.floor((now - lastTickRef.current) / 1000);
 
-          if (newRemaining === 0) {
-            try { navigator.vibrate?.([500, 200, 500, 200, 500]); } catch { /* */ }
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('🚨 타이머 종료', { body: `${t.label} 시간이 모두 경과되었습니다.` });
+        if (deltaSec >= 1) {
+          lastTickRef.current = now - ((now - lastTickRef.current) % 1000);
+
+          setTimers(prev => prev.map(t => {
+            if (!t.isRunning || t.remaining <= 0) return t;
+            
+            const oldRemaining = t.remaining;
+            const newRemaining = Math.max(0, oldRemaining - deltaSec);
+            
+            const dangerThreshold = Math.floor(t.totalSeconds * DANGER_THRESHOLD);
+            const warnThreshold = Math.floor(t.totalSeconds * WARN_THRESHOLD);
+
+            if (newRemaining === 0 && oldRemaining > 0) {
+              try { navigator.vibrate?.([500, 200, 500, 200, 500]); } catch { /* */ }
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🚨 타이머 종료', { body: `${t.label} 시간이 모두 경과되었습니다.` });
+              }
+            } else if (newRemaining <= dangerThreshold && oldRemaining > dangerThreshold) {
+              try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ }
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('⚠️ 위험 경고', { body: `${t.label} 남은 시간이 10% 이하입니다! 대피 혹은 교대를 준비하세요.` });
+              }
+            } else if (newRemaining <= warnThreshold && oldRemaining > warnThreshold) {
+              try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ }
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('📢 교대 경고', { body: `${t.label} 1/3 남았습니다.` });
+              }
             }
-          } else if (newRemaining === Math.floor(t.totalSeconds * DANGER_THRESHOLD)) {
-            try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ }
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('⚠️ 위험 경고', { body: `${t.label} 남은 시간이 10% 이하입니다! 대피 혹은 교대를 준비하세요.` });
-            }
-          } else if (newRemaining === Math.floor(t.totalSeconds * WARN_THRESHOLD)) {
-            try { navigator.vibrate?.([200, 100, 200]); } catch { /* */ }
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('📢 교대 경고', { body: `${t.label} 1/3 남았습니다.` });
-            }
+
+            return { ...t, remaining: newRemaining };
+          }));
+
+          const sw = stopwatchStartRef.current;
+          if (stopwatchRunning && sw) {
+            setStopwatchElapsed(now - sw.getTime());
           }
 
-          return { ...t, remaining: Math.max(0, newRemaining) };
-        }));
-
-        const sw = stopwatchStartRef.current;
-        if (stopwatchRunning && sw) {
-          setStopwatchElapsed(Date.now() - sw.getTime());
+          setTick(t => t + 1);
         }
-
-        setTick(t => t + 1);
       }, 1000);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);

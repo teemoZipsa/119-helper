@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchCivilShelters, fetchTsunamiShelters } from '../services/apiClient';
+import { fetchCivilShelters, fetchTsunamiShelters, isStaleDataError } from '../services/apiClient';
 import { fetchRestrooms, fetchRestroomCityIndex } from '../services/restroomApi';
 import type { FireFacility } from '../data/mockData';
 import type { CityIndex } from '../services/fireWaterApi';
@@ -84,6 +84,7 @@ export default function FacilitySearchView({
   const [facilities, setFacilities] = useState<FacilityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('전체');
   const [selectedFacility, setSelectedFacility] = useState<FacilityItem | null>(null);
@@ -146,6 +147,7 @@ export default function FacilitySearchView({
 
     setLoading(true);
     setApiError(null);
+    setWarning(null);
     setFacilities([]);
     setSelectedFacility(null);
 
@@ -154,7 +156,16 @@ export default function FacilitySearchView({
       const ctprvnNm = cityToCtprvn[city] || '서울특별시';
 
       if (activeCategory === 'tsunami') {
-        const rawItems = await fetchTsunamiShelters();
+        let rawItems: any;
+        try {
+          rawItems = await fetchTsunamiShelters();
+        } catch (e: any) {
+          if (isStaleDataError(e)) {
+            rawItems = e.cachedData;
+            const t = e.cachedAt ? new Date(e.cachedAt).toLocaleTimeString() : '';
+            setWarning(`${e.message}${t ? ` (성공: ${t})` : ''}`);
+          } else throw e;
+        }
         
         items = rawItems.filter((it: any) => {
           const addr1 = it.SHNT_PLACE_DTL_POSITION || '';
@@ -170,9 +181,17 @@ export default function FacilitySearchView({
             addr4.startsWith(ctprvnNm);
         });
       } else if (activeCategory === 'civil') {
-        // 민방위 대피시설 필터링 로직 수정
-        // DSSP-IF-10166는 지역 필터링이 조금 불안정하므로 추가 필터링 수행
-        const rawItems = await fetchCivilShelters(ctprvnNm);
+        let rawItems: any;
+        try {
+          rawItems = await fetchCivilShelters(ctprvnNm);
+        } catch (e: any) {
+          if (isStaleDataError(e)) {
+            rawItems = e.cachedData;
+            const t = e.cachedAt ? new Date(e.cachedAt).toLocaleTimeString() : '';
+            setWarning(`${e.message}${t ? ` (성공: ${t})` : ''}`);
+          } else throw e;
+        }
+
         items = rawItems.filter((it: any) => {
           const addr1 = it.LCTN_WHOL_ADDR || ''; // DSSP-IF-10166
           const addr2 = it.RDNMADR || '';
@@ -502,6 +521,17 @@ export default function FacilitySearchView({
                   다시 시도
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Warning */}
+          {!loading && warning && (
+            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3 mt-4">
+              <span className="material-symbols-outlined text-yellow-400">warning</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+                <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 데이터를 표시 중입니다.</p>
+              </div>
             </div>
           )}
 

@@ -15,9 +15,9 @@ export type ShiftId = 'FIRE' | 'DAY' | 'NIGHT';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SHIFT_TYPES: Record<ShiftId, { id: ShiftId; label: string; hours: number; hasNight: boolean; color: string }> = {
-  FIRE: { id: 'FIRE', label: '당번', hours: 24, hasNight: true, color: 'bg-errorContainer text-onErrorContainer border-error/50' },
-  DAY: { id: 'DAY', label: '주간', hours: 9, hasNight: false, color: 'bg-primaryContainer text-onPrimaryContainer border-primary/50' },
-  NIGHT: { id: 'NIGHT', label: '야간', hours: 15, hasNight: true, color: 'bg-secondaryContainer text-onSecondaryContainer border-secondary/50' },
+  FIRE: { id: 'FIRE', label: '당번', hours: 24, hasNight: true, color: 'bg-error-container text-on-error-container border-error/50' },
+  DAY: { id: 'DAY', label: '주간', hours: 9, hasNight: false, color: 'bg-primary-container text-on-primary-container border-primary/50' },
+  NIGHT: { id: 'NIGHT', label: '야간', hours: 15, hasNight: true, color: 'bg-secondary-container text-on-secondary-container border-secondary/50' },
 };
 
 export default function OvertimeCalc() {
@@ -274,7 +274,7 @@ export default function OvertimeCalc() {
               onClick={(e) => toggleHoliday(e, d)}
               className={`text-[10px] cursor-pointer px-1 rounded transition-colors ${
                 isManualHoliday
-                  ? 'bg-error text-onError'
+                  ? 'bg-error text-on-error'
                   : 'text-on-surface-variant/30 hover:text-on-surface-variant'
               }`}
             >
@@ -335,7 +335,7 @@ export default function OvertimeCalc() {
           {days}
         </div>
         <p className="text-xs text-on-surface-variant mt-2 text-center">
-          *숫자 클릭: 근무 변경 / <span className="inline-block bg-error text-onError px-1 rounded mx-0.5">휴</span>클릭: 휴일 지정
+          *숫자 클릭: 근무 변경 / <span className="inline-block bg-error text-on-error px-1 rounded mx-0.5">휴</span>클릭: 휴일 지정
         </p>
       </div>
     );
@@ -344,14 +344,14 @@ export default function OvertimeCalc() {
   return (
     <div className="bg-surface border border-outline-variant/20 rounded-2xl overflow-hidden flex flex-col h-full shadow-sm">
       {/* Header */}
-      <div className="bg-primary p-5 sm:p-6 text-onPrimary flex flex-col sm:flex-row items-center justify-between shadow-sm">
+      <div className="bg-primary p-5 sm:p-6 text-on-primary flex flex-col sm:flex-row items-center justify-between shadow-sm">
         <div className="flex items-center gap-3 mb-2 sm:mb-0">
           <div className="bg-white/20 p-2 rounded-full hidden sm:block">
             <span className="material-symbols-outlined text-2xl">payments</span>
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">초과근무 수당 계산기</h1>
-            <p className="text-primaryContainer text-xs sm:text-sm font-medium mt-0.5">2026년 기준 단가 적용</p>
+            <p className="text-primary-container text-xs sm:text-sm font-medium mt-0.5">2026년 기준 단가 적용</p>
           </div>
         </div>
       </div>
@@ -463,7 +463,7 @@ export default function OvertimeCalc() {
         {/* Section 2: Input Area */}
         <div className="space-y-4">
           {activeTab === 'calendar' && (
-            <div className="animate-in fade-in duration-300">
+            <div className="animate-fade-in">
               <div className="flex justify-between items-end mb-2">
                 <h3 className="text-base font-bold text-on-surface">근무 캘린더</h3>
                 <button
@@ -543,7 +543,7 @@ export default function OvertimeCalc() {
           )}
 
           {activeTab === 'simple' && (
-            <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="space-y-4 animate-fade-in">
               <div className="flex justify-between items-center mb-2">
                  <h3 className="text-base font-bold text-on-surface">종합시간 직접입력</h3>
                  <button
@@ -573,7 +573,7 @@ export default function OvertimeCalc() {
                   <span className="ml-2 text-sm text-on-surface-variant font-medium">h</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between bg-secondaryContainer/20 p-4 rounded-xl border border-secondary/20">
+              <div className="flex items-center justify-between bg-secondary-container/20 p-4 rounded-xl border border-secondary/20">
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-secondary">야간 근무 시간</span>
                   <span className="text-xs text-secondary/70 mt-1">22:00~06:00 내역만 합산</span>
@@ -590,7 +590,7 @@ export default function OvertimeCalc() {
                   <span className="ml-2 text-sm text-secondary/70 font-medium">h</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between bg-errorContainer/20 p-4 rounded-xl border border-error/20">
+              <div className="flex items-center justify-between bg-error-container/20 p-4 rounded-xl border border-error/20">
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-error">휴일 근무 일수</span>
                   <span className="text-xs text-error/70 mt-1">당번/주간 휴일근무에 해당하는 일수</span>
@@ -620,7 +620,7 @@ export default function OvertimeCalc() {
                   checked={includeFlatPay}
                   onChange={() => setIncludeFlatPay(!includeFlatPay)}
                 />
-                <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-onPrimary opacity-0 transition-opacity peer-checked:opacity-100">
+                <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-on-primary opacity-0 transition-opacity peer-checked:opacity-100">
                   <span className="material-symbols-outlined text-[16px] font-bold">check</span>
                 </div>
               </label>

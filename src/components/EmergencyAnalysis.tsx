@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchEmergencyStats, fetchEmergencyInfo } from '../services/apiClient';
+import { fetchEmergencyStats, fetchEmergencyInfo, isStaleDataError } from '../services/apiClient';
 
 /* ─── 타입 정의 ─── */
 interface ActivityStats {
@@ -528,6 +528,7 @@ export default function EmergencyAnalysis() {
   const [viewMode, setViewMode] = useState<ViewMode>('stats');
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   // 통계 데이터
   const [activity, setActivity] = useState<ActivityStats>({ dispatchCnt: 0, transferCnt: 0, transferPrsnCnt: 0 });
@@ -541,7 +542,7 @@ export default function EmergencyAnalysis() {
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [firstAids, setFirstAids] = useState<FirstAidItem[]>([]);
 
-  const fetchAll = async () => {
+  const fetchAll = async (forceRefresh = false) => {
     const statsParams: Record<string, string> = { reqYm: selectedMonth };
     const infoParams: Record<string, string> = { reportYm: selectedMonth };
     if (selectedSido !== '전체') {
@@ -550,30 +551,48 @@ export default function EmergencyAnalysis() {
     }
 
     try {
+      setWarning(null);
       const results = await Promise.allSettled([
         // 기존 통계
-        fetchEmergencyStats('activity', statsParams),
-        fetchEmergencyStats('dispatch-type', statsParams),
-        fetchEmergencyStats('age', statsParams),
-        fetchEmergencyStats('location', statsParams),
-        fetchEmergencyInfo('vehicles', selectedSido !== '전체' ? { sido: selectedSido } : {}),
+        fetchEmergencyStats('activity', statsParams, forceRefresh),
+        fetchEmergencyStats('dispatch-type', statsParams, forceRefresh),
+        fetchEmergencyStats('age', statsParams, forceRefresh),
+        fetchEmergencyStats('location', statsParams, forceRefresh),
+        fetchEmergencyInfo('vehicles', selectedSido !== '전체' ? { sido: selectedSido } : {}, forceRefresh),
         // 구급정보 상세 (새로 추가)
-        fetchEmergencyInfo('activity', infoParams),
-        fetchEmergencyInfo('transfer', infoParams),
-        fetchEmergencyInfo('first-aid', infoParams),
+        fetchEmergencyInfo('activity', infoParams, forceRefresh),
+        fetchEmergencyInfo('transfer', infoParams, forceRefresh),
+        fetchEmergencyInfo('first-aid', infoParams, forceRefresh),
       ]);
 
-      const allFailed = results.every(r => r.status === 'rejected');
+      let hasStaleData = false;
+      let staleMessage = '';
+
+      const processedResults = results.map(r => {
+        if (r.status === 'fulfilled') return r;
+        if (r.status === 'rejected' && isStaleDataError(r.reason)) {
+          hasStaleData = true;
+          const t = r.reason.cachedAt ? new Date(r.reason.cachedAt).toLocaleTimeString() : '';
+          staleMessage = `${r.reason.message}${t ? ` (마지막 성공 시각: ${t})` : ''}`;
+          return { status: 'fulfilled', value: r.reason.cachedData } as PromiseFulfilledResult<any>;
+        }
+        return r;
+      });
+
+      const allFailed = processedResults.every(r => r.status === 'rejected');
       if (allFailed) {
-        const firstErr = (results[0] as PromiseRejectedResult).reason;
+        const firstErr = (processedResults[0] as PromiseRejectedResult).reason;
         setApiError(firstErr?.message || '구급 API에 연결할 수 없습니다.');
         setLoading(false);
         return;
       }
+      if (hasStaleData) {
+        setWarning(staleMessage);
+      }
 
       // 119구급활동현황 (통계)
-      if (results[0].status === 'fulfilled') {
-        const items = results[0].value?.items || [];
+      if (processedResults[0].status === 'fulfilled') {
+        const items = processedResults[0].value?.items || [];
         const totals: ActivityStats = { dispatchCnt: 0, transferCnt: 0, transferPrsnCnt: 0 };
         items.forEach((it: any) => {
           totals.dispatchCnt += parseInt(it.dispatchCnt || it.출동건수 || '0');
@@ -584,8 +603,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 출동유형별
-      if (results[1].status === 'fulfilled') {
-        const items = results[1].value?.items || [];
+      if (processedResults[1].status === 'fulfilled') {
+        const items = processedResults[1].value?.items || [];
         setDispatchTypes(items.map((it: any) => ({
           dispatchType: it.dispatchType || it.출동유형 || '기타',
           dispatchCnt: parseInt(it.dispatchCnt || it.출동건수 || '0'),
@@ -595,8 +614,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 연령별
-      if (results[2].status === 'fulfilled') {
-        const items = results[2].value?.items || [];
+      if (processedResults[2].status === 'fulfilled') {
+        const items = processedResults[2].value?.items || [];
         setAgeGroups(items.map((it: any) => ({
           ageGroup: it.ageGroup || it.연령대 || '미상',
           dispatchCnt: parseInt(it.dispatchCnt || it.출동건수 || '0'),
@@ -606,8 +625,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 사고장소별
-      if (results[3].status === 'fulfilled') {
-        const items = results[3].value?.items || [];
+      if (processedResults[3].status === 'fulfilled') {
+        const items = processedResults[3].value?.items || [];
         setLocations(items.map((it: any) => ({
           accidentPlace: it.accidentPlace || it.사고장소 || '기타',
           dispatchCnt: parseInt(it.dispatchCnt || it.출동건수 || '0'),
@@ -617,8 +636,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 구급차량
-      if (results[4].status === 'fulfilled') {
-        const items = results[4].value?.items || [];
+      if (processedResults[4].status === 'fulfilled') {
+        const items = processedResults[4].value?.items || [];
         setVehicles(items.map((it: any) => ({
           vhcleNo: it.vhcleNo || it.차량호수 || '-',
           vhcleKnd: it.vhcleKnd || it.차량구분 || '-',
@@ -627,8 +646,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 구급활동 상세 (대응시간/거리)
-      if (results[5].status === 'fulfilled') {
-        const items = results[5].value?.items || [];
+      if (processedResults[5].status === 'fulfilled') {
+        const items = processedResults[5].value?.items || [];
         setActivityDetails(items.map((it: any) => ({
           arriveYmd: it.arriveYmd || it.현장도착년월 || '',
           arriveHh: it.arriveHh || it.현장도착시 || '',
@@ -644,8 +663,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 환자이송정보
-      if (results[6].status === 'fulfilled') {
-        const items = results[6].value?.items || [];
+      if (processedResults[6].status === 'fulfilled') {
+        const items = processedResults[6].value?.items || [];
         setTransfers(items.map((it: any) => ({
           occrrPlce: it.occrrPlce || it.사고발생장소 || '미상',
           occrrType: it.occrrType || it.발생유형 || '미상',
@@ -655,8 +674,8 @@ export default function EmergencyAnalysis() {
       }
 
       // 응급처치정보
-      if (results[7].status === 'fulfilled') {
-        const items = results[7].value?.items || [];
+      if (processedResults[7].status === 'fulfilled') {
+        const items = processedResults[7].value?.items || [];
         setFirstAids(items.map((it: any) => ({
           ptntAge: it.ptntAge || it.환자연령 || '',
           ptntSex: it.ptntSex || it.환자성별 || '미상',
@@ -730,7 +749,8 @@ export default function EmergencyAnalysis() {
             onClick={() => {
               setLoading(true);
               setApiError(null);
-              fetchAll();
+              setWarning(null);
+              fetchAll(true);
             }}
             disabled={loading}
             className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-2 disabled:opacity-50"
@@ -785,26 +805,34 @@ export default function EmergencyAnalysis() {
       </div>
 
       {/* API 에러 배너 */}
-      {!loading && apiError && (
+      {!loading && apiError && !hasAnyData && (
         <div className="bg-error-container/30 border border-error/30 rounded-xl p-6 text-center">
           <span className="material-symbols-outlined text-5xl text-error/60 mb-3 block">cloud_off</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">구급통계 API 연결 실패</h3>
           <p className="text-sm text-error/80 max-w-lg mx-auto mb-1">{apiError}</p>
-          <p className="text-xs text-on-surface-variant max-w-lg mx-auto mb-4">
-            공공데이터포털에서 API 서비스 신청 후 승인까지 최대 1~2일이 소요될 수 있습니다.<br />
-            이미 승인된 API라면 공공데이터 서버 일시 장애일 수 있으니 잠시 후 다시 시도해주세요.
-          </p>
           <button
             onClick={() => {
               setLoading(true);
               setApiError(null);
+              setWarning(null);
               fetchAll();
             }}
-            className="bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2"
+            className="bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2 mt-4"
           >
             <span className="material-symbols-outlined text-lg">refresh</span>
             다시 시도
           </button>
+        </div>
+      )}
+
+      {/* Warning */}
+      {!loading && warning && (
+        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 통계를 표시 중입니다.</p>
+          </div>
         </div>
       )}
 

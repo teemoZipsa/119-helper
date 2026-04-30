@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
+type GroupId = 'pressure' | 'flow' | 'length' | 'temperature' | 'volume' | 'area';
+
 interface ConversionGroup {
-  id: string;
+  id: GroupId;
   title: string;
   icon: string;
   color: string;
@@ -51,7 +53,7 @@ const GROUPS: ConversionGroup[] = [
       { id: 'liter', label: 'L', toBase: v => v, fromBase: v => v },
       { id: 'gallon', label: 'gal (US)', toBase: v => v * 3.78541, fromBase: v => v / 3.78541 },
       { id: 'cubicm', label: 'm³', toBase: v => v * 1000, fromBase: v => v / 1000 },
-      { id: 'ton', label: 't (톤)', toBase: v => v * 1000, fromBase: v => v / 1000 },
+      { id: 'ton', label: 't (물 기준)', toBase: v => v * 1000, fromBase: v => v / 1000 },
     ]
   },
   {
@@ -66,13 +68,13 @@ const GROUPS: ConversionGroup[] = [
 ];
 
 export default function UnitConverter() {
-  const [activeGroup, setActiveGroup] = useState('pressure');
+  const [activeGroup, setActiveGroup] = useState<GroupId>('pressure');
   const [fromUnit, setFromUnit] = useState('mpa');
   const [inputValue, setInputValue] = useState('');
 
   const group = GROUPS.find(g => g.id === activeGroup)!;
 
-  const handleGroupChange = (id: string) => {
+  const handleGroupChange = (id: GroupId) => {
     setActiveGroup(id);
     setInputValue('');
     const g = GROUPS.find(gr => gr.id === id)!;
@@ -80,8 +82,14 @@ export default function UnitConverter() {
   };
 
   const fromUnitObj = group.units.find(u => u.id === fromUnit)!;
-  const numValue = parseFloat(inputValue) || 0;
-  const baseValue = fromUnitObj.toBase(numValue);
+  
+  const parsedValue = Number(inputValue);
+  const hasValidInput = inputValue.trim() !== '' && Number.isFinite(parsedValue);
+  const numValue = hasValidInput ? parsedValue : 0;
+
+  const isInvalidKelvin = activeGroup === 'temperature' && fromUnit === 'kelvin' && hasValidInput && numValue < 0;
+
+  const baseValue = hasValidInput && !isInvalidKelvin ? fromUnitObj.toBase(numValue) : 0;
 
   return (
     <div className="space-y-4">
@@ -102,6 +110,7 @@ export default function UnitConverter() {
       <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
         {GROUPS.map(g => (
           <button
+            type="button"
             key={g.id}
             onClick={() => handleGroupChange(g.id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
@@ -146,6 +155,18 @@ export default function UnitConverter() {
           </div>
         </div>
 
+        {activeGroup === 'volume' && (
+          <p className="text-[11px] text-on-surface-variant mt-2 mb-4 leading-relaxed">
+            ※ 톤(t) 변환은 물 기준의 근사값입니다. 액체 종류에 따라 실제 부피는 달라질 수 있습니다.
+          </p>
+        )}
+
+        {isInvalidKelvin && (
+          <p className="text-xs text-error mt-2 mb-4 font-bold">
+            Kelvin 값은 0 이상이어야 합니다.
+          </p>
+        )}
+
         {/* 결과 */}
         <div className="space-y-2">
           {group.units.map(unit => {
@@ -156,9 +177,10 @@ export default function UnitConverter() {
               : converted.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
 
             return (
-              <div
+              <button
+                type="button"
                 key={unit.id}
-                className="flex items-center justify-between bg-surface-container/50 rounded-xl px-4 py-3 hover:bg-surface-container transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between bg-surface-container/50 rounded-xl px-4 py-3 hover:bg-surface-container transition-colors cursor-pointer"
                 onClick={() => {
                   setFromUnit(unit.id);
                   setInputValue(converted.toString());
@@ -166,9 +188,9 @@ export default function UnitConverter() {
               >
                 <span className="text-sm text-on-surface-variant font-bold">{unit.label}</span>
                 <span className={`text-lg font-black font-mono ${group.color} tabular-nums`}>
-                  {inputValue ? display : '─'}
+                  {hasValidInput && !isInvalidKelvin ? display : '─'}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -199,13 +221,16 @@ export default function UnitConverter() {
           </div>
           <div className="bg-surface-container/50 rounded-lg p-3">
             <p className="font-bold text-on-surface">65mm 호스 1본</p>
-            <p className="text-on-surface-variant">20m, 마찰손실 0.02 MPa/본</p>
+            <p className="text-on-surface-variant">20m 기준 · 간이계산 가정값 0.02 MPa/본</p>
           </div>
           <div className="bg-surface-container/50 rounded-lg p-3">
-            <p className="font-bold text-on-surface">공기호흡기 용량</p>
-            <p className="text-on-surface-variant">6.8L (30분) / 9L (45분)</p>
+            <p className="font-bold text-on-surface">공기호흡기 용기</p>
+            <p className="text-on-surface-variant">6.8L / 9L 등 · 사용시간은 잔압·활동강도별 상이</p>
           </div>
         </div>
+        <p className="text-[11px] text-on-surface-variant mt-3 leading-relaxed">
+          ※ 아래 값은 교육·현장 참고용입니다. 실제 판단은 최신 화재안전기준, 장비 사양, 기관별 SOP를 우선하세요.
+        </p>
       </div>
     </div>
   );

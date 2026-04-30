@@ -8,13 +8,28 @@ export default function WeatherAlertBanner({ city }: { city: string }) {
 
   useEffect(() => {
     let isMounted = true;
-    fetchWeatherAlerts(city).then(data => {
-      if (isMounted) {
+
+    setLoading(true);
+    setIsVisible(true);
+
+    fetchWeatherAlerts(city)
+      .then(data => {
+        if (!isMounted) return;
         setAlert(data);
+      })
+      .catch(err => {
+        console.warn('[WeatherAlertBanner] failed:', err);
+        if (!isMounted) return;
+        setAlert(null);
+      })
+      .finally(() => {
+        if (!isMounted) return;
         setLoading(false);
-      }
-    });
-    return () => { isMounted = false; };
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [city]);
 
   if (loading || !alert || !isVisible) return null;

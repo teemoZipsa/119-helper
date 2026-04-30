@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 // ─── SOP 데이터 ───
 interface SOPStep {
@@ -43,7 +43,7 @@ const SOP_LIST: SOPData[] = [
     steps: [
       { text: '현장 도착 보고 (건물명, 층수, 화재 층)', critical: true },
       { text: '건물 관계자 접촉 (소방시설 현황 파악)' },
-      { text: '비상용 승강기 확보 (화재 2개층 아래까지)' },
+      { text: '비상용 승강기 확보 (화재층 2~3개층 아래 등 안전구역)' },
       { text: '전층 방송 (대피 안내)', critical: true },
       { text: '옥내소화전/연결송수관 확인 및 가압' },
       { text: '전진지휘소 설치 (화재 2개층 아래)' },
@@ -72,7 +72,7 @@ const SOP_LIST: SOPData[] = [
       { text: '인명 검색 (바닥 기어가며 검색)', critical: true },
       { text: '주수 시 감전 주의 (전기 차단 확인)' },
       { text: '퇴로 확보 (로프 라인 설치)' },
-      { text: '교대 인력 15분 간격 투입' },
+      { text: '공기호흡기 잔압·열스트레스 고려해 교대 주기 설정' },
       { text: '최종 보고 및 철수' },
     ]
   },
@@ -87,7 +87,7 @@ const SOP_LIST: SOPData[] = [
       { text: '교통 통제 요청' },
       { text: '2차 사고 방지 (안전 삼각대)' },
       { text: '인명 확인 (차량 내 탑승자)', critical: true },
-      { text: 'EV 차량 시 고전압 주의 (600V 이상)' },
+      { text: 'EV 차량 시 고전압 배터리·재발화 위험 주의' },
       { text: 'LPG 차량 시 폭발 경계 (안전거리 확보)' },
       { text: '엔진룸 화재 시 보닛 일부만 개방 후 주수' },
       { text: '하부 주수로 연료 화재 진압' },
@@ -122,9 +122,9 @@ const SOP_LIST: SOPData[] = [
     steps: [
       { text: '현장 접근 시 전기 스파크 발생 금지', critical: true },
       { text: '가스 검지기로 농도 측정', critical: true },
-      { text: '폭발 하한계(LEL) 확인 (메탄 5%, LPG 2.1%)' },
+      { text: 'LEL 확인 (예: 메탄 약 5%, 프로판 약 2.1%; LPG는 조성별 MSDS 확인)' },
       { text: '주변 화기 사용 중지 + 전기 차단' },
-      { text: '대피 구역 설정 (최소 50m)', critical: true },
+      { text: '대피·통제 구역 설정 (가스 종류·농도·풍향에 따라 확대)', critical: true },
       { text: '가스 밸브 차단 (가능한 경우)' },
       { text: '도시가스사 긴급 연락' },
       { text: '강제 환기 (스파크 방지 장비 사용)' },
@@ -146,7 +146,7 @@ const SOP_LIST: SOPData[] = [
       { text: '헬기 요청 (대면적 시)' },
       { text: '비화 감시 (불씨 날림 주의)' },
       { text: '등산객/입산자 확인', critical: true },
-      { text: '진화 후 잔불 감시 (24시간)' },
+      { text: '진화 후 잔불·재발화 감시 지속' },
       { text: '재발화 방지 순찰' },
     ]
   },
@@ -168,20 +168,76 @@ const SOP_LIST: SOPData[] = [
   },
 ];
 
+const STORAGE_KEY = '119helper-sop-checklist';
+
+const toValidDate = (value: unknown) => {
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 export default function SOPChecklist() {
   const [selectedSOP, setSelectedSOP] = useState<string | null>(null);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [timestamps, setTimestamps] = useState<Record<string, Date>>({});
+  
+  const [checked, setChecked] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}-checked`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [timestamps, setTimestamps] = useState<Record<string, Date>>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}-timestamps`);
+      if (!saved) return {};
+  
+      const parsed = JSON.parse(saved) as Record<string, string>;
+      const entries = Object.entries(parsed)
+        .map(([key, value]) => {
+          const date = toValidDate(value);
+          return date ? [key, date] : null;
+        })
+        .filter(Boolean) as [string, Date][];
+  
+      return Object.fromEntries(entries);
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}-checked`, JSON.stringify(checked));
+  }, [checked]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      `${STORAGE_KEY}-timestamps`,
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(timestamps).map(([key, value]) => [key, value.toISOString()])
+        )
+      )
+    );
+  }, [timestamps]);
 
   const currentSOP = SOP_LIST.find(s => s.id === selectedSOP);
 
   const toggleCheck = useCallback((stepKey: string) => {
     setChecked(prev => {
-      const newChecked = { ...prev, [stepKey]: !prev[stepKey] };
-      if (!prev[stepKey]) {
-        setTimestamps(ts => ({ ...ts, [stepKey]: new Date() }));
-      }
-      return newChecked;
+      const nextValue = !prev[stepKey];
+
+      setTimestamps(ts => {
+        const next = { ...ts };
+        if (nextValue) {
+          next[stepKey] = new Date();
+        } else {
+          delete next[stepKey];
+        }
+        return next;
+      });
+
+      return { ...prev, [stepKey]: nextValue };
     });
   }, []);
 
@@ -234,8 +290,9 @@ export default function SOPChecklist() {
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand('copy');
+      const ok = document.execCommand('copy');
       document.body.removeChild(ta);
+      alert(ok ? '체크리스트가 복사되었습니다.' : '복사에 실패했습니다.');
     }
   };
 
@@ -251,18 +308,21 @@ export default function SOPChecklist() {
             <div>
               <h2 className="text-xl font-bold text-on-surface">현장 대응 체크리스트</h2>
               <p className="text-xs text-on-surface-variant mt-0.5">
-                화재 유형별 표준작전절차 (SOP)
+                화재 유형별 SOP 참고 체크리스트
+              </p>
+              <p className="text-[11px] text-on-surface-variant mt-2 leading-relaxed">
+                ※ 기관별 공식 SOP, 현장 지휘, 최신 법령·지침을 우선하며 본 체크리스트는 참고용입니다.
               </p>
             </div>
           </div>
           {currentSOP && (
             <div className="flex gap-2">
-              <button onClick={resetChecks}
+              <button type="button" onClick={resetChecks}
                 className="bg-surface-container text-on-surface-variant px-3 py-2 rounded-lg text-sm font-bold hover:bg-surface-container-high transition-colors flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-lg">restart_alt</span>
                 초기화
               </button>
-              <button onClick={copyReport}
+              <button type="button" onClick={copyReport}
                 className="bg-primary/10 text-primary px-3 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-lg">content_copy</span>
                 복사
@@ -279,6 +339,7 @@ export default function SOPChecklist() {
             const progress = getProgress(sop);
             return (
               <button
+                type="button"
                 key={sop.id}
                 onClick={() => setSelectedSOP(sop.id)}
                 className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-4 text-left hover:border-primary/30 hover:scale-[1.02] transition-all group relative overflow-hidden"
@@ -306,6 +367,7 @@ export default function SOPChecklist() {
       {currentSOP && (
         <>
           <button
+            type="button"
             onClick={() => setSelectedSOP(null)}
             className="flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary transition-colors"
           >
@@ -346,6 +408,7 @@ export default function SOPChecklist() {
 
                 return (
                   <button
+                    type="button"
                     key={i}
                     onClick={() => toggleCheck(key)}
                     className={`w-full text-left p-4 transition-all flex items-start gap-3 ${
@@ -375,7 +438,7 @@ export default function SOPChecklist() {
                           </span>
                         )}
                       </div>
-                      {time && (
+                      {isDone && time && (
                         <p className="text-[10px] text-green-400 mt-1">
                           ✓ {time.toLocaleTimeString('ko-KR')}
                         </p>

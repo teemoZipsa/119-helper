@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchFireDamage, type FireDamageItem } from '../services/apiClient';
+import { fetchFireDamage, type FireDamageItem, isStaleDataError } from '../services/apiClient';
 
 /* ─── 색상 팔레트 ─── */
 const PALETTE = [
@@ -106,15 +106,19 @@ function RegionBarChart({ data }: { data: { name: string; count: number; damage:
 export default function FireDamageView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [items, setItems] = useState<FireDamageItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [selectedSido, setSelectedSido] = useState('전체');
   const PAGE_SIZE = 50;
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    setWarning(null);
+
+    let res;
     try {
       const params: Record<string, string> = {
         pageNo: String(page),
@@ -123,19 +127,29 @@ export default function FireDamageView() {
       if (selectedSido !== '전체') {
         params.lawAddrName = selectedSido;
       }
-      const res = await fetchFireDamage(params);
-      if (res.error) {
-        setError(res.error);
-        setItems([]);
-        setTotalCount(0);
-      } else {
-        setItems(res.items || []);
-        setTotalCount(res.totalCount || 0);
-      }
+      res = await fetchFireDamage(params, forceRefresh);
     } catch (e: any) {
-      setError(e?.message || '데이터 조회 실패');
-      setItems([]);
+      if (isStaleDataError(e)) {
+        res = e.cachedData;
+        const t = e.cachedAt ? new Date(e.cachedAt).toLocaleTimeString() : '';
+        setWarning(`${e.message}${t ? ` (성공: ${t})` : ''}`);
+      } else {
+        setError(e?.message || '데이터 조회 실패');
+        setItems([]);
+        setLoading(false);
+        return;
+      }
     }
+
+    if (res?.error) {
+      setError(res.error);
+      setItems([]);
+      setTotalCount(0);
+    } else if (res) {
+      setItems(res.items || []);
+      setTotalCount(res.totalCount || 0);
+    }
+    
     setLoading(false);
   }, [page, selectedSido]);
 
@@ -193,7 +207,7 @@ export default function FireDamageView() {
           >
             {SIDO_LIST.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button onClick={fetchData} disabled={loading}
+          <button onClick={() => fetchData(true)} disabled={loading}
             className="bg-error/10 text-error px-4 py-2 rounded-lg text-sm font-bold hover:bg-error/20 transition-colors flex items-center gap-2 disabled:opacity-50">
             <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin' : ''}`}>refresh</span>
             새로고침
@@ -213,20 +227,27 @@ export default function FireDamageView() {
       )}
 
       {/* API 에러 */}
-      {!loading && error && (
+      {!loading && error && items.length === 0 && (
         <div className="bg-error-container/30 border border-error/30 rounded-xl p-6 text-center">
           <span className="material-symbols-outlined text-5xl text-error/60 mb-3 block">cloud_off</span>
           <h3 className="text-lg font-bold text-on-surface mb-2">화재피해 API 연결 실패</h3>
           <p className="text-sm text-error/80 max-w-lg mx-auto mb-1">{error}</p>
-          <p className="text-xs text-on-surface-variant max-w-lg mx-auto mb-4">
-            API 키 승인 직후에는 활성화까지 1~2시간이 소요될 수 있습니다.<br />
-            잠시 후 다시 시도해주세요.
-          </p>
-          <button onClick={fetchData}
-            className="bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2">
+          <button onClick={() => fetchData(true)}
+            className="mt-4 bg-error/15 text-error px-5 py-2 rounded-lg text-sm font-bold hover:bg-error/25 transition-colors inline-flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">refresh</span>
             다시 시도
           </button>
+        </div>
+      )}
+
+      {/* Warning */}
+      {!loading && warning && (
+        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-yellow-400">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-yellow-300">최신 데이터 갱신 실패</p>
+            <p className="text-xs text-yellow-200/80 mt-1">{warning} 마지막으로 성공한 데이터를 표시 중입니다.</p>
+          </div>
         </div>
       )}
 

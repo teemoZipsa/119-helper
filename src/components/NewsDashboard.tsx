@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchLocalNews, type NewsItem } from '../services/newsApi';
 
 type NewsCategory = 'fire' | 'rescue' | 'medical' | 'default';
 
+const stripHtml = (value?: string) => value ? value.replace(/<[^>]*>/g, '') : '';
+
 const getNewsCategory = (title: string = '', desc: string = ''): NewsCategory => {
   const text = (title + ' ' + desc).toLowerCase();
   
-  // 정규식을 확 늘려서 키워드가 더 잘 걸리게 수정
-  if (/(화재|불|진압|소방|화망|발화|잔불|산불|방화|인화)/.test(text)) return 'fire';
+  if (/(화재|진압|소방|화망|발화|잔불|산불|방화|인화|불길|불꽃|큰불|불이\s*나)/.test(text)) return 'fire';
   if (/(구조|사고|고립|붕괴|실종|수색|추락|재난|지진|태풍|침수|안전|재해|대비)/.test(text)) return 'rescue';
-  if (/(구급|환자|응급|이송|병원|심정지|위급|부상|심폐소생술|CPR|의료|생명)/.test(text)) return 'medical';
+  if (/(구급|환자|응급|이송|병원|심정지|위급|부상|심폐소생술|cpr|의료|생명)/.test(text)) return 'medical';
   
   return 'default';
 };
@@ -48,6 +49,8 @@ interface NewsDashboardProps {
 export default function NewsDashboard({ city }: NewsDashboardProps) {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestSeqRef = useRef(0);
 
   // 시/도 한글명 매핑 (App.tsx에서 넘겨받는 값이 seoul, busan 같은 영문 key일 수 있으므로)
   const cityNames: Record<string, string> = {
@@ -56,16 +59,31 @@ export default function NewsDashboard({ city }: NewsDashboardProps) {
   };
   const displayCity = cityNames[city] || city;
 
-  const loadNews = async (forceRefresh = false) => {
+  const loadNews = useCallback(async (forceRefresh = false) => {
+    const seq = ++requestSeqRef.current;
+    
     setLoading(true);
-    const data = await fetchLocalNews(displayCity, forceRefresh);
-    setNews(data);
-    setLoading(false);
-  };
+    setError('');
+
+    try {
+      const data = await fetchLocalNews(displayCity, forceRefresh);
+      if (seq !== requestSeqRef.current) return;
+      setNews(data);
+    } catch (err) {
+      if (seq !== requestSeqRef.current) return;
+      console.warn('[NewsDashboard] failed:', err);
+      setNews([]);
+      setError('뉴스 데이터를 불러오지 못했습니다.');
+    } finally {
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [displayCity]);
 
   useEffect(() => {
     loadNews();
-  }, [displayCity]);
+  }, [loadNews]);
 
   return (
     <div className="space-y-6">
@@ -81,12 +99,19 @@ export default function NewsDashboard({ city }: NewsDashboardProps) {
         </div>
         <button 
           onClick={() => loadNews(true)}
-          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm"
+          disabled={loading}
+          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm disabled:opacity-50"
           title="새로고침"
         >
-          <span className={`material-symbols-outlined ${loading && news.length === 0 ? 'animate-spin' : ''}`}>refresh</span>
+          <span className={`material-symbols-outlined ${loading ? 'animate-spin' : ''}`}>refresh</span>
         </button>
       </div>
+
+      {error && !loading && (
+        <div className="p-4 rounded-xl bg-error/10 border border-error/30 text-error text-sm">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -133,7 +158,8 @@ export default function NewsDashboard({ city }: NewsDashboardProps) {
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       onError={(e) => {
-                        e.currentTarget.parentElement!.style.display = 'none';
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) parent.style.display = 'none';
                       }}
                     />
                     {/* 데스크톱 영웅 카드용 이너 오버레이 (텍스트로 넘어가는 경계 부드럽게) */}
@@ -167,15 +193,17 @@ export default function NewsDashboard({ city }: NewsDashboardProps) {
                   <h3 className={`
                     font-extrabold text-on-surface leading-tight tracking-tight mb-4 relative z-10
                     ${isHero ? 'text-[22px] md:text-[28px]' : 'text-[18px] line-clamp-3'}
-                    group-hover:bg-clip-text group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:${theme.gradient} transition-all duration-300
-                  `} dangerouslySetInnerHTML={{ __html: item.title }} />
+                    transition-all duration-300
+                  `}>
+                    {stripHtml(item.title)}
+                  </h3>
                   
                   {/* 본문 설명 */}
                   <p className={`
                     text-on-surface-variant font-medium leading-relaxed relative z-10 opacity-80
                     ${isHero ? 'text-[15px] line-clamp-4' : 'text-[14px] line-clamp-2'}
                   `}>
-                    {item.description}
+                    {stripHtml(item.description)}
                   </p>
 
                   {/* 하단 바로가기 (모던 버튼) */}

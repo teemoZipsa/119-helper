@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getRealtimeAirQuality, type AirQualityData } from '../services/airQualityApi';
 import { getERRealTimeBeds, CITY_TO_SIDO, type ERRealTimeData } from '../services/erApi';
 import { getUltraShortNow, parseCurrentWeather, CITY_GRIDS, type CurrentWeather } from '../services/weatherApi';
@@ -9,11 +9,11 @@ import StickyNotes from './StickyNotes';
 import { WildfireTicker } from './WildfireTicker';
 import { WindCompass } from './WindCompass';
 import MiniTimerWidget from './MiniTimerWidget';
+import { EQUIPMENT_CHECKLIST_TOTAL } from './EquipmentChecklist';
+import type { NavigateTarget } from '../types/navigation';
 
 import hydrantBg from '../assets/hydrant_bg.jpg';
 import waterTowerBg from '../assets/water_tower_bg.jpg';
-
-type TabId = 'dashboard' | 'hydrants' | 'waterTowers' | 'er' | 'building' | 'weather' | 'calculator' | 'memo' | 'calendar' | 'shelter' | 'emergency' | 'fire-analysis' | 'multiuse' | 'hazmat' | 'annual-fire' | 'statistics' | 'manual' | 'field-timer' | 'news' | 'policy' | 'wildfire' | 'checklist' | 'law';
 
 const cityNames: Record<string, string> = {
   seoul: '서울', busan: '부산', daegu: '대구', incheon: '인천',
@@ -21,7 +21,7 @@ const cityNames: Record<string, string> = {
 };
 
 interface DashboardProps {
-  onNavigate: (tab: TabId, subId?: string) => void;
+  onNavigate: (tab: NavigateTarget, subId?: string) => void;
   city: string;
   fireFacilities: FireFacility[];
   isLoadingFacilities: boolean;
@@ -30,7 +30,7 @@ interface DashboardProps {
 
 interface QuickToolDef {
   id: string;
-  tab: TabId;
+  tab: NavigateTarget;
   subId?: string;
   icon: string;
   label: string;
@@ -57,7 +57,7 @@ const ALL_QUICK_TOOLS: QuickToolDef[] = [
   { id: 'shelter', tab: 'shelter', icon: 'location_city', label: '시설 조회', color: 'text-yellow-400', category: '조회', bgImage: '/images/tools/bg_shelter.png' },
   { id: 'er', tab: 'er', icon: 'local_hospital', label: '응급실 현황', color: 'text-pink-400', category: '현장 도구', bgImage: '/images/tools/bg_er.png' },
   { id: 'weather', tab: 'weather', icon: 'cloud', label: '기상 정보', color: 'text-sky-400', category: '현장 도구' },
-  { id: 'statistics', tab: 'statistics', icon: 'bar_chart', label: '통계 분석', color: 'text-orange-500', category: '행정/기타' },
+  { id: 'statistics', tab: 'annual-fire', icon: 'bar_chart', label: '통계 분석', color: 'text-orange-500', category: '행정/기타' },
   { id: 'news', tab: 'news', icon: 'newspaper', label: '소방 뉴스', color: 'text-teal-500', category: '행정/기타' },
   { id: 'wildfire', tab: 'wildfire', icon: 'local_fire_department', label: '산불 현황', color: 'text-red-500', category: '행정/기타', bgImage: '/images/tools/bg_wildfire.png' },
   { id: 'manual', tab: 'manual', icon: 'menu_book', label: '대응 매뉴얼', color: 'text-blue-500', category: '행정/기타' },
@@ -154,28 +154,46 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
     localStorage.setItem('119helper-custom-tools', JSON.stringify(newTools));
   };
 
+  const fetchSeqRef = useRef(0);
+
   useEffect(() => {
     let isMounted = true;
+    const seq = ++fetchSeqRef.current;
+
+    const grid = CITY_GRIDS[city] || CITY_GRIDS.seoul;
+    const sido = CITY_TO_SIDO[city] || '서울특별시';
+
+    setWeatherLoading(true);
+    setWeather(null);
+    setAirQuality(null);
+    setErList([]);
 
     // 실시간 날씨
-    const grid = CITY_GRIDS[city] || CITY_GRIDS.seoul;
-    setWeatherLoading(true);
     getUltraShortNow(grid.nx, grid.ny).then(items => {
-      if (isMounted && items.length > 0) {
+      if (isMounted && seq === fetchSeqRef.current && items.length > 0) {
         setWeather(parseCurrentWeather(items));
       }
-      setWeatherLoading(false);
-    }).catch(() => setWeatherLoading(false));
+    }).catch(err => {
+      console.warn('[DashboardView] weather failed:', err);
+      if (isMounted && seq === fetchSeqRef.current) setWeather(null);
+    }).finally(() => {
+      if (isMounted && seq === fetchSeqRef.current) setWeatherLoading(false);
+    });
 
-  // 대기질
-    getRealtimeAirQuality(city).then(data => {
-      if (isMounted && data) setAirQuality(data);
+    // 대기질
+    getRealtimeAirQuality(cityLabel).then(data => {
+      if (isMounted && seq === fetchSeqRef.current && data) setAirQuality(data);
+    }).catch(err => {
+      console.warn('[DashboardView] air quality failed:', err);
+      if (isMounted && seq === fetchSeqRef.current) setAirQuality(null);
     });
     
     // 응급실
-    const sido = CITY_TO_SIDO[city] || '서울특별시';
     getERRealTimeBeds(sido).then(data => {
-      if (isMounted && data) setErList(data);
+      if (isMounted && seq === fetchSeqRef.current && data) setErList(data);
+    }).catch(err => {
+      console.warn('[DashboardView] ER beds failed:', err);
+      if (isMounted && seq === fetchSeqRef.current) setErList([]);
     });
 
     // 개인안전장비 점검 진행률 로드
@@ -184,8 +202,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
       if (saved && isMounted) {
         const parsed = JSON.parse(saved);
         const checkedCount = Object.values(parsed).filter(Boolean).length;
-        const totalItemsCount = 13; // SCBA 4 + PPE 5 + 통신 4 = 13개 항목
-        setChecklistProgress(Math.round((checkedCount / totalItemsCount) * 100));
+        setChecklistProgress(Math.round((checkedCount / EQUIPMENT_CHECKLIST_TOTAL) * 100));
       }
     } catch { /* parse error fallback */ }
 
@@ -226,7 +243,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
       <WeatherAlertBanner city={cityLabel} />
 
       {/* 산불 실시간 지역 티커 */}
-      <WildfireTicker cityName={cityLabel} />
+      <WildfireTicker cityName={cityLabel} onClick={() => onNavigate('wildfire')} />
 
       {/* Large Weather + ER Row */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
@@ -288,7 +305,11 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
                 airQuality?.pm10Grade === '2' ? 'text-green-300' :
                 airQuality?.pm10Grade === '3' ? 'text-amber-300' :
                 airQuality?.pm10Grade === '4' ? 'text-red-400' : 'text-white/60'
-              }`}>{airQuality ? airQuality.pm10Value : '조회 중'}{airQuality?.pm10Value !== '-' ? '㎍/㎥' : ''}</span>
+              }`}>
+                {airQuality ? (
+                  <>{airQuality.pm10Value}{airQuality.pm10Value !== '-' ? '㎍/㎥' : ''}</>
+                ) : '조회 중'}
+              </span>
             </div>
             <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
               <span className="text-xs text-white/70">초미세먼지</span>
@@ -297,7 +318,11 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
                 airQuality?.pm25Grade === '2' ? 'text-green-300' :
                 airQuality?.pm25Grade === '3' ? 'text-amber-300' :
                 airQuality?.pm25Grade === '4' ? 'text-red-400' : 'text-white/60'
-              }`}>{airQuality ? airQuality.pm25Value : '조회 중'}{airQuality?.pm25Value !== '-' ? '㎍/㎥' : ''}</span>
+              }`}>
+                {airQuality ? (
+                  <>{airQuality.pm25Value}{airQuality.pm25Value !== '-' ? '㎍/㎥' : ''}</>
+                ) : '조회 중'}
+              </span>
             </div>
             <div className="flex items-center gap-2 bg-black/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/10">
               <span className="text-xs text-white/70">강수</span>
@@ -424,7 +449,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
           </button>
         </div>
         {showQuickTools && customTools.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 p-3 md:p-4 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4 p-3 md:p-4 animate-slide-in-top">
             {customTools.map(toolId => {
               const tool = ALL_QUICK_TOOLS.find(t => t.id === toolId);
               if (!tool) return null;
@@ -479,7 +504,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
 
       {/* Editor Modal */}
       {isEditingTools && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-surface-container-lowest w-full max-w-2xl max-h-[85vh] rounded-2xl flex flex-col shadow-2xl relative">
             <div className="p-5 border-b border-outline-variant/20 flex items-center justify-between sticky top-0 bg-surface-container-lowest/95 backdrop-blur-md rounded-t-2xl z-10">
               <div className="flex items-center gap-2">
@@ -517,7 +542,7 @@ export default function DashboardView({ onNavigate, city, fireFacilities, isLoad
                               saveTools([...customTools, tool.id]);
                             }
                           }}
-                          className={`flex items-center gap-3 p-3 text-left border rounded-xl transition-all ${
+                          className={`relative flex items-center gap-3 p-3 text-left border rounded-xl transition-all ${
                             isSelected 
                               ? 'bg-primary/10 border-primary/40 shadow-inner' 
                               : 'bg-surface-container border-outline-variant/10 hover:border-outline-variant/30'

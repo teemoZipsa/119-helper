@@ -15,7 +15,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ windSpeed, windDirecti
   const statusColor = isDanger ? (variant === 'glass' ? 'text-red-400' : 'text-error') : isWarning ? (variant === 'glass' ? 'text-amber-400' : 'text-tertiary') : (variant === 'glass' ? 'text-white' : 'text-primary');
   const statusBg = variant === 'glass' 
     ? (isDanger ? 'bg-red-500/20 border-red-500/40 backdrop-blur-md' : isWarning ? 'bg-amber-500/20 border-amber-500/40 backdrop-blur-md' : 'bg-black/40 border-white/10 backdrop-blur-md')
-    : (isDanger ? 'bg-error/10 border-error/30 bg-surface shadow-sm' : isWarning ? 'bg-tertiary/10 border-tertiary/30 bg-surface shadow-sm' : 'bg-primary/10 border-primary/30 bg-surface shadow-sm');
+    : (isDanger ? 'bg-error/10 border-error/30 shadow-sm' : isWarning ? 'bg-tertiary/10 border-tertiary/30 shadow-sm' : 'bg-primary/10 border-primary/30 shadow-sm');
   const statusText = isDanger ? '강풍 위험' : isWarning ? '바람 주의' : '풍속 양호';
   
   const labelTextClass = variant === 'glass' ? 'text-white/70 bg-white/10 border-white/20' : 'text-on-surface-variant bg-surface border-outline-variant';
@@ -57,7 +57,7 @@ export const WindCompass: React.FC<WindCompassProps> = ({ windSpeed, windDirecti
         </div>
         
         <div className="flex items-baseline gap-1">
-          <span className={`text-2xl font-extrabold font-[Headline] ${statusColor}`}>
+          <span className={`text-2xl font-extrabold font-headline ${statusColor}`}>
             {windSpeed.toFixed(1)}
           </span>
           <span className={`text-sm font-medium ${variant === 'glass' ? 'text-white/70' : 'text-on-surface-variant'}`}>m/s</span>

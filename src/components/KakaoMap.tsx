@@ -22,6 +22,19 @@ const STATUS_COLORS: Record<string, string> = {
   '고장': '#ef4444',
 };
 
+const escapeHtml = (value: unknown) => {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+};
+
+const isValidCoord = (lat: number, lng: number) => {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+};
+
 interface KakaoMapProps {
   data: FireFacility[];
   city: string;
@@ -41,8 +54,17 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
   const clustererRef = useRef<any>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const overlaysRef = useRef<Map<string, any>>(new Map());
+  const markerImageCacheRef = useRef<Map<string, any>>(new Map());
+  const markerImageUrlsRef = useRef<string[]>([]);
   const [sdkReady, setSdkReady] = useState(!!window.kakao?.maps);
   const [sdkError, setSdkError] = useState('');
+
+  // Unmount 시 오브젝트 URL 정리
+  useEffect(() => {
+    return () => {
+      markerImageUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // SDK 동적 로드
   useEffect(() => {
@@ -55,8 +77,9 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
   // 지도 초기화 (SDK 로드 완료 후)
   useEffect(() => {
     if (!sdkReady || !containerRef.current || !window.kakao?.maps) return;
+    if (mapRef.current) return;
 
-    const center = CITY_CENTERS[city] || CITY_CENTERS.seoul;
+    const center = CITY_CENTERS.seoul;
     const options = {
       center: new window.kakao.maps.LatLng(center.lat, center.lng),
       level: 7,
@@ -70,25 +93,33 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     map.addControl(zoomControl, window.kakao.maps.ControlPosition.RIGHT);
 
     // 마커 클러스터러 초기화
-    const clusterer = new window.kakao.maps.MarkerClusterer({
-      map: map,
-      averageCenter: true,
-      minLevel: 7,
-      disableClickZoom: false,
-      styles: [{
-        width: '40px', height: '40px',
-        background: 'rgba(239, 68, 68, 0.9)',
-        borderRadius: '50%',
-        color: '#fff',
-        textAlign: 'center',
-        fontWeight: 'bold',
-        lineHeight: '40px',
-        fontSize: '14px',
-        border: '2px solid rgba(255,255,255,0.5)',
-        boxShadow: '0 4px 12px rgba(239,68,68,0.3)'
-      }]
-    });
+    const hasClusterer = !!window.kakao.maps.MarkerClusterer;
+    const clusterer = hasClusterer
+      ? new window.kakao.maps.MarkerClusterer({
+          map: map,
+          averageCenter: true,
+          minLevel: 7,
+          disableClickZoom: false,
+          styles: [{
+            width: '40px', height: '40px',
+            background: 'rgba(239, 68, 68, 0.9)',
+            borderRadius: '50%',
+            color: '#fff',
+            textAlign: 'center',
+            fontWeight: 'bold',
+            lineHeight: '40px',
+            fontSize: '14px',
+            border: '2px solid rgba(255,255,255,0.5)',
+            boxShadow: '0 4px 12px rgba(239,68,68,0.3)'
+          }]
+        })
+      : null;
     clustererRef.current = clusterer;
+
+    // 지도 빈 공간 클릭 시 모든 오버레이 닫기
+    window.kakao.maps.event.addListener(map, 'click', () => {
+      overlaysRef.current.forEach(o => o.setMap(null));
+    });
 
     return () => {
       clustererRef.current?.clear();
@@ -117,12 +148,12 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
     overlaysRef.current = new Map();
 
     const newMarkers: any[] = [];
+    const validItems: FireFacility[] = [];
 
-    data.forEach(item => {
-      const position = new window.kakao.maps.LatLng(item.lat, item.lng);
-      const color = STATUS_COLORS[item.status] || '#9ca3af';
+    const getMarkerImage = (color: string) => {
+      const cached = markerImageCacheRef.current.get(color);
+      if (cached) return cached;
 
-      // SVG 마커 이미지
       const markerSize = new window.kakao.maps.Size(24, 35);
       const svgContent = `
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="35" viewBox="0 0 24 35">
@@ -132,14 +163,32 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
       `;
       const blob = new Blob([svgContent], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
-      const markerImage = new window.kakao.maps.MarkerImage(url, markerSize);
+      markerImageUrlsRef.current.push(url);
+
+      const image = new window.kakao.maps.MarkerImage(url, markerSize);
+      markerImageCacheRef.current.set(color, image);
+      return image;
+    };
+
+    data.forEach(item => {
+      if (!isValidCoord(item.lat, item.lng)) return;
+      validItems.push(item);
+
+      const position = new window.kakao.maps.LatLng(item.lat, item.lng);
+      const color = STATUS_COLORS[item.status] || '#9ca3af';
+
+      const markerImage = getMarkerImage(color);
 
       const marker = new window.kakao.maps.Marker({
-        map,
         position,
         image: markerImage,
         title: item.id,
       });
+
+      const safeId = escapeHtml(item.id);
+      const safeType = escapeHtml(item.type);
+      const safeAddress = escapeHtml(item.address);
+      const safeStatus = escapeHtml(item.status);
 
       // 커스텀 오버레이 (클릭 시 표시)
       const overlayContent = `
@@ -161,7 +210,7 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
               background: ${color};
               ${item.status === '고장' ? 'animation: pulse 1.5s infinite;' : ''}
             "></span>
-            <span style="color: #e5e7eb; font-weight: 800; font-size: 14px;">${item.id}</span>
+            <span style="color: #e5e7eb; font-weight: 800; font-size: 14px;">${safeId}</span>
             <span style="
               font-size: 10px;
               padding: 2px 8px;
@@ -170,10 +219,10 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
               color: ${color};
               font-weight: 700;
               border: 1px solid ${color}40;
-            ">${item.status}</span>
+            ">${safeStatus}</span>
           </div>
-          <p style="color: #9ca3af; font-size: 11px; margin: 0 0 4px;">${item.type}</p>
-          <p style="color: #e5e7eb; font-size: 12px; margin: 0; line-height: 1.4;">${item.address}</p>
+          <p style="color: #9ca3af; font-size: 11px; margin: 0 0 4px;">${safeType}</p>
+          <p style="color: #e5e7eb; font-size: 12px; margin: 0; line-height: 1.4;">${safeAddress}</p>
           <div style="
             position: absolute;
             bottom: -8px; left: 50%;
@@ -208,17 +257,29 @@ export default function KakaoMap({ data, city, height = '300px', selectedId }: K
 
     if (clustererRef.current) {
       clustererRef.current.addMarkers(newMarkers);
+    } else {
+      newMarkers.forEach(marker => marker.setMap(map));
     }
 
     // Bounds 맞추기 (데이터가 있을 때)
-    if (data.length > 0) {
+    if (validItems.length === 1) {
+      const only = validItems[0];
+      map.setCenter(new window.kakao.maps.LatLng(only.lat, only.lng));
+      map.setLevel(4);
+    } else if (validItems.length > 1) {
       const bounds = new window.kakao.maps.LatLngBounds();
-      data.forEach(item => {
+      validItems.forEach(item => {
         bounds.extend(new window.kakao.maps.LatLng(item.lat, item.lng));
       });
       map.setBounds(bounds);
     }
-  }, [data, city]);
+
+    return () => {
+      clustererRef.current?.clear();
+      newMarkers.forEach(m => m.setMap(null));
+      overlaysRef.current.forEach(o => o.setMap(null));
+    };
+  }, [data]);
 
   // 외부에서 selectedId 변경 시 해당 마커 포커스
   useEffect(() => {

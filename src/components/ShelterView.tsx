@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getShelters, type ShelterData } from '../services/shelterApi';
 
 interface ShelterViewProps {
@@ -10,16 +10,47 @@ const cityToCtprvn: Record<string, string> = {
   gwangju: '광주', daejeon: '대전', ulsan: '울산', sejong: '세종', jeju: '제주',
 };
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
+const normalize = (value?: string) =>
+  (value || '').replace(/\s+/g, '').toLowerCase();
+
+const isValidCoord = (lat: unknown, lng: unknown) => {
+  const la = Number(lat);
+  const ln = Number(lng);
+
+  return (
+    Number.isFinite(la) &&
+    Number.isFinite(ln) &&
+    la >= 33 &&
+    la <= 39 &&
+    ln >= 124 &&
+    ln <= 132
+  );
+};
+
 export default function ShelterView({ city }: ShelterViewProps) {
   const [shelters, setShelters] = useState<ShelterData[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [mapError, setMapError] = useState('');
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [filter, setFilter] = useState('');
   const [selectedShelter, setSelectedShelter] = useState<ShelterData | null>(null);
+  
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const infoWindowsRef = useRef<any[]>([]);
+  const myMarkerRef = useRef<any>(null);
+  const myInfoWindowRef = useRef<any>(null);
+  const requestSeqRef = useRef(0);
 
   // GPS 위치 가져오기
   useEffect(() => {
@@ -32,65 +63,94 @@ export default function ShelterView({ city }: ShelterViewProps) {
   }, []);
 
   // 데이터 로드
-  const loadData = () => {
+  const loadData = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
     setApiError(null);
-    getShelters(city, userPos?.lat, userPos?.lng)
-      .then(data => {
-        setShelters(data);
+    
+    try {
+      const data = await getShelters(city, userPos?.lat, userPos?.lng);
+      if (seq !== requestSeqRef.current) return;
+      setShelters(data);
+    } catch (err) {
+      if (seq !== requestSeqRef.current) return;
+      setApiError(err instanceof Error ? err.message : '대피소 데이터를 불러올 수 없습니다.');
+    } finally {
+      if (seq === requestSeqRef.current) {
         setLoading(false);
-      })
-      .catch((err) => {
-        setApiError(err?.message || '대피소 데이터를 불러올 수 없습니다.');
-        setLoading(false);
-      });
-  };
+      }
+    }
+  }, [city, userPos]);
 
   useEffect(() => {
     loadData();
-  }, [city, userPos]);
+  }, [loadData]);
 
-  // 카카오맵 초기화
+  // 카카오맵 1회 초기화
   useEffect(() => {
-    if (!window.kakao || !window.kakao.maps || !mapRef.current) return;
+    if (!window.kakao?.maps || !mapRef.current) {
+      if (!window.kakao) {
+        setMapError('카카오 지도를 불러오지 못했습니다.');
+      }
+      return;
+    }
+    if (mapInstanceRef.current) return;
 
     window.kakao.maps.load(() => {
-      const centerLat = userPos?.lat || 37.5665;
-      const centerLng = userPos?.lng || 126.978;
-      const options = {
-        center: new window.kakao.maps.LatLng(centerLat, centerLng),
+      const map = new window.kakao.maps.Map(mapRef.current, {
+        center: new window.kakao.maps.LatLng(37.5665, 126.978),
         level: 8,
-      };
-      const map = new window.kakao.maps.Map(mapRef.current, options);
+      });
       mapInstanceRef.current = map;
-
-      // 현재 위치 마커
-      if (userPos) {
-        const myMarker = new window.kakao.maps.Marker({
-          position: new window.kakao.maps.LatLng(userPos.lat, userPos.lng),
-          map,
-          title: '현재 위치',
-        });
-        const infoWindow = new window.kakao.maps.InfoWindow({
-          content: '<div style="padding:3px 8px;font-size:11px;background:#1e3a5f;color:white;border-radius:4px;">📍 현재 위치</div>',
-        });
-        infoWindow.open(map, myMarker);
-      }
     });
+  }, []);
+
+  // GPS 위치 연동
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !window.kakao?.maps || !userPos) return;
+
+    const pos = new window.kakao.maps.LatLng(userPos.lat, userPos.lng);
+    map.panTo(pos);
+
+    if (myMarkerRef.current) {
+      myMarkerRef.current.setPosition(pos);
+    } else {
+      myMarkerRef.current = new window.kakao.maps.Marker({
+        position: pos,
+        map,
+        title: '현재 위치',
+      });
+      myInfoWindowRef.current = new window.kakao.maps.InfoWindow({
+        content: '<div style="padding:3px 8px;font-size:11px;background:#1e3a5f;color:white;border-radius:4px;">📍 현재 위치</div>',
+      });
+      myInfoWindowRef.current.open(map, myMarkerRef.current);
+    }
   }, [userPos]);
+
+  const normalizedFilter = normalize(filter);
+  const filteredShelters = useMemo(() => shelters.filter(s => {
+    if (!normalizedFilter) return true;
+    return (
+      normalize(s.shelterName).includes(normalizedFilter) ||
+      normalize(s.address).includes(normalizedFilter)
+    );
+  }), [shelters, normalizedFilter]);
 
   // 마커 업데이트
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !window.kakao) return;
+    if (!map || !window.kakao?.maps) return;
 
-    // 기존 마커 제거
+    // 기존 마커 및 정보창 제거
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
+    infoWindowsRef.current.forEach(w => w.close());
+    infoWindowsRef.current = [];
 
-    const filteredList = shelters.filter(s =>
-      !filter || s.shelterName.includes(filter) || s.address.includes(filter)
-    ).slice(0, 100);
+    const filteredList = filteredShelters
+      .filter(s => isValidCoord(s.lat, s.lng))
+      .slice(0, 100);
 
     filteredList.forEach(shelter => {
       const pos = new window.kakao.maps.LatLng(shelter.lat, shelter.lng);
@@ -100,39 +160,43 @@ export default function ShelterView({ city }: ShelterViewProps) {
         title: shelter.shelterName,
       });
 
+      const name = escapeHtml(shelter.shelterName);
+      const address = escapeHtml(shelter.address);
+      const capacity = Number.isFinite(shelter.capacity) ? shelter.capacity.toLocaleString() : '미상';
+      const altitude = Number.isFinite(shelter.altitude) ? shelter.altitude : '미상';
+      const distanceHtml = shelter.distance !== undefined ? `<br/><span style="color:#e65100;">📏 ${escapeHtml(shelter.distance)}km</span>` : '';
+
       const infoContent = `
         <div style="padding:8px 12px;font-size:12px;max-width:220px;line-height:1.5;">
-          <strong style="color:#1a73e8;">🏢 ${shelter.shelterName}</strong><br/>
-          <span style="color:#666;">📍 ${shelter.address}</span><br/>
-          <span style="color:#333;">👥 수용: ${shelter.capacity.toLocaleString()}명 | 해발: ${shelter.altitude}m</span>
-          ${shelter.distance ? `<br/><span style="color:#e65100;">📏 ${shelter.distance}km</span>` : ''}
+          <strong style="color:#1a73e8;">🏢 ${name}</strong><br/>
+          <span style="color:#666;">📍 ${address}</span><br/>
+          <span style="color:#333;">👥 수용: ${capacity}명 | 해발: ${altitude}m</span>
+          ${distanceHtml}
         </div>`;
 
       const infoWindow = new window.kakao.maps.InfoWindow({ content: infoContent });
 
       window.kakao.maps.event.addListener(marker, 'click', () => {
+        infoWindowsRef.current.forEach(w => w.close());
         setSelectedShelter(shelter);
         infoWindow.open(map, marker);
         map.panTo(pos);
       });
 
       markersRef.current.push(marker);
+      infoWindowsRef.current.push(infoWindow);
     });
-  }, [shelters, filter]);
+  }, [filteredShelters]);
 
   // 리스트 클릭 시 지도 이동
   const handleSelectShelter = (shelter: ShelterData) => {
     setSelectedShelter(shelter);
     const map = mapInstanceRef.current;
-    if (map && window.kakao) {
+    if (map && window.kakao?.maps) {
       map.panTo(new window.kakao.maps.LatLng(shelter.lat, shelter.lng));
       map.setLevel(4);
     }
   };
-
-  const filteredShelters = shelters.filter(s =>
-    !filter || s.shelterName.includes(filter) || s.address.includes(filter)
-  );
 
   return (
     <div className="space-y-4">
@@ -169,11 +233,19 @@ export default function ShelterView({ city }: ShelterViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Map */}
         <div className="lg:col-span-7">
-          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden">
+          <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden relative">
             <div
               ref={mapRef}
               className="w-full h-[400px] lg:h-[500px]"
             />
+            {mapError && (
+              <div className="absolute inset-0 bg-surface-container-lowest/80 flex items-center justify-center p-4">
+                <div className="bg-error/10 border border-error/20 p-4 rounded-xl flex items-center gap-3 text-error">
+                  <span className="material-symbols-outlined">map</span>
+                  <span className="text-sm font-bold">{mapError}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -203,8 +275,11 @@ export default function ShelterView({ city }: ShelterViewProps) {
                 <p className="text-xs text-on-surface-variant mt-1">
                   공공데이터 서버 장애 또는 API 승인 대기 중일 수 있습니다.
                 </p>
-                <button onClick={loadData}
-                  className="mt-3 bg-red-500/20 text-red-300 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={loadData}
+                  className="mt-3 bg-red-500/20 text-red-300 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-red-500/30 transition-colors inline-flex items-center gap-1.5"
+                >
                   <span className="material-symbols-outlined text-sm">refresh</span>
                   다시 시도
                 </button>
@@ -218,6 +293,7 @@ export default function ShelterView({ city }: ShelterViewProps) {
               <div className="max-h-[420px] overflow-y-auto custom-scrollbar divide-y divide-outline-variant/10">
                 {filteredShelters.slice(0, 50).map((shelter, idx) => (
                   <button
+                    type="button"
                     key={`${shelter.shelterName}-${idx}`}
                     onClick={() => handleSelectShelter(shelter)}
                     className={`w-full text-left p-3 hover:bg-surface-container-high transition-colors ${
@@ -284,6 +360,7 @@ export default function ShelterView({ city }: ShelterViewProps) {
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setSelectedShelter(null)}
               className="p-1 rounded-lg hover:bg-surface-container transition-colors"
             >

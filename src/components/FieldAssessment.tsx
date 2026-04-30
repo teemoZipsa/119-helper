@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 // 8단계 평가 항목 정의
 const EVALUATION_STEPS = [
@@ -94,39 +94,99 @@ const EVALUATION_STEPS = [
   },
 ];
 
-type EvalStatus = '양호' | '주의' | '위험';
+type EvalStatus = '미입력' | '양호' | '주의' | '위험';
+
+const ITEM_STATUS_RULES: Record<string, Partial<Record<string, EvalStatus>>> = {
+  trapped_persons: {
+    '없음': '양호',
+    '1~2명': '주의',
+    '3~5명': '위험',
+    '다수': '위험',
+    '미확인': '주의',
+  },
+  structural_damage: {
+    '없음': '양호',
+    '경미': '양호',
+    '중간': '주의',
+    '심각': '위험',
+  },
+  adjacent_buildings: {
+    '없음': '양호',
+    '이격 충분': '양호',
+    '밀집 지역': '주의',
+    '연소 우려': '위험',
+  },
+  hazmat_present: {
+    '없음': '양호',
+    '소량': '주의',
+    '다량': '위험',
+    '미확인': '주의',
+  },
+  water_supply: {
+    '확보 완료': '양호',
+    '확보 중': '주의',
+    '부족': '위험',
+    '없음': '위험',
+  },
+};
 
 function getItemStatus(value: string | undefined): EvalStatus {
-  if (!value) return '주의';
+  if (!value) return '미입력';
   const dangerWords = ['높음', '매우 높음', '심각', '위험', '진입 불가', '다량', '불량', '두절', '없음', '부족', '미대피', '미확립', '흑색', '최성기', '다층', '전체', '밀집', '연소', '긴급', '교체'];
-  const cautionWords = ['보통', '주의', '중간', '진행 중', '미착수', '미확인', '약함', '간헐적', '미배치', '회색', '성장기', '1개층', '이격'];
+  const cautionWords = ['보통', '주의', '중간', '진행 중', '미착수', '미확인', '약함', '간헐적', '미배치', '회색', '성장기', '1개층'];
   
   if (dangerWords.some(w => value.includes(w))) return '위험';
   if (cautionWords.some(w => value.includes(w))) return '주의';
   return '양호';
 }
 
+function getItemStatusByKey(key: string, value?: string): EvalStatus {
+  if (!value) return '미입력';
+
+  const rule = ITEM_STATUS_RULES[key];
+  if (rule && rule[value]) return rule[value]!;
+
+  return getItemStatus(value);
+}
+
 function getStepStatus(stepId: number, values: Record<string, string>): EvalStatus {
   const step = EVALUATION_STEPS.find(s => s.id === stepId);
-  if (!step) return '주의';
+  if (!step) return '미입력';
   
-  const statuses = step.items.map(item => getItemStatus(values[item.key]));
+  const answered = step.items.filter(item => values[item.key]);
+  if (answered.length === 0) return '미입력';
+
+  const statuses = answered.map(item => getItemStatusByKey(item.key, values[item.key]));
   if (statuses.includes('위험')) return '위험';
   if (statuses.includes('주의')) return '주의';
   return '양호';
 }
 
 const STATUS_STYLES: Record<EvalStatus, { bg: string; text: string; dot: string; border: string }> = {
+  '미입력': { bg: 'bg-surface-container-high', text: 'text-on-surface-variant', dot: 'bg-on-surface-variant/30', border: 'border-outline-variant/20' },
   '양호': { bg: 'bg-green-500/10', text: 'text-green-400', dot: 'bg-green-400', border: 'border-green-500/30' },
   '주의': { bg: 'bg-yellow-500/10', text: 'text-yellow-400', dot: 'bg-yellow-400', border: 'border-yellow-500/30' },
   '위험': { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-400 animate-pulse', border: 'border-red-500/30' },
 };
 
+const STORAGE_KEY = '119helper-field-assessment';
+
 export default function FieldAssessment() {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [activeStep, setActiveStep] = useState(1);
   const [showSummary, setShowSummary] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+  }, [values]);
 
   const handleSelect = (key: string, value: string) => {
     setValues(prev => ({ ...prev, [key]: prev[key] === value ? '' : value }));
@@ -143,6 +203,7 @@ export default function FieldAssessment() {
   const handleReset = () => {
     if (window.confirm('평가 내용을 모두 초기화하시겠습니까?')) {
       setValues({});
+      localStorage.removeItem(STORAGE_KEY);
       setActiveStep(1);
       setShowSummary(false);
     }
@@ -165,8 +226,9 @@ export default function FieldAssessment() {
 
     const overallDanger = EVALUATION_STEPS.filter(s => getStepStatus(s.id, values) === '위험').length;
     const overallCaution = EVALUATION_STEPS.filter(s => getStepStatus(s.id, values) === '주의').length;
+    const overallGood = EVALUATION_STEPS.filter(s => getStepStatus(s.id, values) === '양호').length;
     text += `${'─'.repeat(30)}\n`;
-    text += `종합: 위험 ${overallDanger}건 | 주의 ${overallCaution}건 | 양호 ${8 - overallDanger - overallCaution}건\n`;
+    text += `종합: 위험 ${overallDanger}건 | 주의 ${overallCaution}건 | 양호 ${overallGood}건\n`;
 
     return text;
   };
@@ -182,9 +244,9 @@ export default function FieldAssessment() {
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand('copy');
+      const ok = document.execCommand('copy');
       document.body.removeChild(ta);
-      alert('평가 보고서가 복사되었습니다.');
+      alert(ok ? '평가 보고서가 복사되었습니다.' : '복사에 실패했습니다.');
     }
   };
 
@@ -218,12 +280,12 @@ export default function FieldAssessment() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleReset}
+            <button type="button" onClick={handleReset}
               className="bg-surface-container text-on-surface-variant px-3 py-2 rounded-lg text-sm font-bold hover:bg-surface-container-high transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-lg">restart_alt</span>
               초기화
             </button>
-            <button onClick={() => setShowSummary(!showSummary)}
+            <button type="button" onClick={() => setShowSummary(!showSummary)}
               className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-primary/20 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-lg">summarize</span>
               {showSummary ? '입력으로' : '종합 보기'}
@@ -240,6 +302,7 @@ export default function FieldAssessment() {
             return (
               <button
                 key={step.id}
+                type="button"
                 onClick={() => { setActiveStep(step.id); setShowSummary(false); }}
                 className={`flex-1 h-2 rounded-full transition-all ${
                   activeStep === step.id && !showSummary
@@ -279,6 +342,7 @@ export default function FieldAssessment() {
             return (
               <button
                 key={step.id}
+                type="button"
                 onClick={() => { setActiveStep(step.id); setShowSummary(false); }}
                 className={`w-full text-left ${style.bg} border ${style.border} rounded-xl p-4 hover:scale-[1.01] transition-all`}
               >
@@ -309,12 +373,12 @@ export default function FieldAssessment() {
 
           {/* 공유 버튼 */}
           <div className="flex gap-3">
-            <button onClick={handleCopy}
+            <button type="button" onClick={handleCopy}
               className="flex-1 bg-primary text-on-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined text-lg">content_copy</span>
               보고서 복사
             </button>
-            <button onClick={handleShare}
+            <button type="button" onClick={handleShare}
               className="flex-1 bg-secondary-container text-on-secondary-container py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-secondary-container/80 transition-colors">
               <span className="material-symbols-outlined text-lg">share</span>
               공유
@@ -333,6 +397,7 @@ export default function FieldAssessment() {
               return (
                 <button
                   key={step.id}
+                  type="button"
                   onClick={() => setActiveStep(step.id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
                     isActive
@@ -383,11 +448,12 @@ export default function FieldAssessment() {
                     <div className="flex flex-wrap gap-2">
                       {'options' in item && (item.options as string[]).map(opt => {
                         const isSelected = values[item.key] === opt;
-                        const optStatus = getItemStatus(opt);
+                        const optStatus = getItemStatusByKey(item.key, opt);
                         const optStyle = STATUS_STYLES[optStatus];
                         return (
                           <button
                             key={opt}
+                            type="button"
                             onClick={() => handleSelect(item.key, opt)}
                             className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
                               isSelected
@@ -409,6 +475,7 @@ export default function FieldAssessment() {
             {/* 다음/이전 네비 */}
             <div className="p-4 border-t border-outline-variant/10 bg-surface-container/20 flex items-center justify-between">
               <button
+                type="button"
                 onClick={() => setActiveStep(prev => Math.max(1, prev - 1))}
                 disabled={activeStep === 1}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
@@ -419,6 +486,7 @@ export default function FieldAssessment() {
               <span className="text-xs text-on-surface-variant font-bold">{activeStep} / 8</span>
               {activeStep < 8 ? (
                 <button
+                  type="button"
                   onClick={() => setActiveStep(prev => Math.min(8, prev + 1))}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
                 >
@@ -427,6 +495,7 @@ export default function FieldAssessment() {
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setShowSummary(true)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
                 >

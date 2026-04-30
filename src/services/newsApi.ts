@@ -21,7 +21,24 @@ const localNewsCache: Record<string, CacheEntry> = {};
 let policyNewsCache: CacheEntry | null = null;
 const alertCache: Record<string, { data: NewsItem | null; timestamp: number }> = {};
 
-async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boolean, limit: number, retries = 2): Promise<any[]> {
+function extractImageUrl(item: Element): string {
+  const imageUrl = item.getElementsByTagName('imageUrl')[0]?.textContent?.trim();
+  if (imageUrl) return imageUrl;
+  const mediaThumb = item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url');
+  if (mediaThumb) return mediaThumb;
+  const mediaContent = item.getElementsByTagName('media:content')[0]?.getAttribute('url');
+  if (mediaContent) return mediaContent;
+  const enclosure = item.getElementsByTagName('enclosure')[0];
+  const enclosureUrl = enclosure?.getAttribute('url');
+  const enclosureType = enclosure?.getAttribute('type') || '';
+  if (enclosureUrl && enclosureType.startsWith('image/')) return enclosureUrl;
+  const descRaw = item.getElementsByTagName('description')[0]?.textContent || '';
+  const imgMatch = descRaw.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (imgMatch?.[1]) return imgMatch[1];
+  return '';
+}
+
+async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boolean, limit: number, retries = 2, options?: { filterBadImages?: boolean }): Promise<any[]> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       if (attempt > 0) {
@@ -104,9 +121,26 @@ async function fetchRssAndParse(url: string, sourceName: string, isOfficial: boo
         if (desc.startsWith('뉴스')) desc = desc.replace(/^뉴스\s*-?\s*/, '');
         if (desc.length < 10) desc = ''; // 내용이 너무 짧으면 없앰
 
-        let imageUrl = item.getElementsByTagName('imageUrl')[0]?.textContent || '';
+        let imageUrl = extractImageUrl(item);
         // CDATA 등 흔적 제거
         imageUrl = imageUrl.replace(/<!\[CDATA\[(.*?)\]\]>/, '$1').trim();
+
+        const isBadPolicyImage = (url: string) => {
+          if (!url) return true;
+          const lower = url.toLowerCase();
+          return (
+            lower.includes('logo') ||
+            lower.includes('favicon') ||
+            lower.includes('icon') ||
+            lower.includes('banner') ||
+            lower.includes('common') ||
+            lower.endsWith('.svg')
+          );
+        };
+
+        if (options?.filterBadImages && isBadPolicyImage(imageUrl)) {
+          imageUrl = '';
+        }
 
         return {
           id: item.getElementsByTagName('link')[0]?.textContent || Math.random().toString(),
@@ -187,10 +221,10 @@ export async function fetchPolicyNews(forceRefresh = false): Promise<NewsItem[]>
   try {
     // 4개 데이터 소스 동시 패치 (전부 구글 뉴스 고급검색 + RSS 프록시 활용)
     const [nfa, mois, mohw, assembly] = await Promise.all([
-      fetchRssAndParse(`${API_BASE}/api/news?type=nfa`, '소방청(정책)', true, 8),
-      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('행정안전부 재난 OR 행정안전부 소방 정책')}`, '행정안전부', true, 4),
-      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('보건복지부 구급 OR 보건복지부 응급')}`, '보건복지부', true, 4),
-      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('국회 소방 법안 OR 119 개정안')}`, '국회(입법)', true, 4),
+      fetchRssAndParse(`${API_BASE}/api/news?type=nfa`, '소방청(정책)', true, 8, 2, { filterBadImages: true }),
+      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('행정안전부 재난 OR 행정안전부 소방 정책')}`, '행정안전부 관련', false, 4, 2, { filterBadImages: true }),
+      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('보건복지부 구급 OR 보건복지부 응급')}`, '보건복지부 관련', false, 4, 2, { filterBadImages: true }),
+      fetchRssAndParse(`${API_BASE}/api/news?type=google&query=${encodeURIComponent('국회 소방 법안 OR 119 개정안')}`, '국회 입법 관련', false, 4, 2, { filterBadImages: true }),
     ]);
     const results = processAndSort([nfa, mois, mohw, assembly]);
     policyNewsCache = { data: results, timestamp: Date.now() };

@@ -8,21 +8,20 @@ const SECTIONS = [
     icon: 'local_fire_department',
     color: 'text-red-400',
     items: [
-      { code: '대응1단계', desc: '소방차 4~8대 출동, 일반 건물화재 · 소규모 화재', detail: '펌프차 2~4, 물탱크차 1~2, 구급차 1' },
-      { code: '대응2단계', desc: '소방차 10~15대, 중규모 화재 · 인명피해 우려', detail: '펌프차 5~7, 물탱크차 3~4, 사다리차 1, 구조대 1' },
-      { code: '대응3단계', desc: '소방차 20대 이상, 대형 화재 · 다수 인명피해', detail: '인접 소방서 지원, 구조대 2개 이상' },
-      { code: '대응4단계', desc: '전 소방력 투입, 재난급 화재', detail: '타 시도 지원 요청, 군 지원 가능' },
+      { code: '대응1단계', desc: '소규모·초기 대응 단계', detail: '관할 소방서 중심 대응. 동원 규모는 지역·대상물·상황에 따라 달라짐' },
+      { code: '대응2단계', desc: '확대 대응 단계', detail: '관할 외 소방력 지원이 필요한 상황. 인명피해 우려·대형화 가능성 고려' },
+      { code: '대응3단계', desc: '광역 지원 대응 단계', detail: '중앙·인접 시도 지원이 필요한 대형 재난 우려 상황' },
     ]
   },
   {
     id: 'situation',
-    title: '상황 보고 코드',
+    title: '상황 보고 예시',
     icon: 'campaign',
     color: 'text-orange-400',
     items: [
-      { code: '상황 A', desc: '화재 진압 완료', detail: '잔화 정리 중, 인원 철수 가능' },
-      { code: '상황 B', desc: '화재 진행 중 (진압 중)', detail: '추가 인력/장비 불필요' },
-      { code: '상황 C', desc: '화재 확대 중', detail: '추가 지원 필요' },
+      { code: '진압 완료 보고', desc: '화재 진압 완료', detail: '잔화 정리·인명피해·재산피해 등 추가 보고' },
+      { code: '진압 중 보고', desc: '화재 진행 중', detail: '화세·연소확대·추가 지원 필요 여부 보고' },
+      { code: '확대 중 보고', desc: '화재 확대 중', detail: '대응단계 상향·추가 자원 요청 검토' },
       { code: '오버', desc: '교신 종료', detail: '보고 끝' },
       { code: '로저/알겠음', desc: '수신 확인', detail: '지시 이해, 수행 예정' },
       { code: '네거티브', desc: '불가/부정', detail: '수행 불가 또는 해당 없음' },
@@ -75,21 +74,24 @@ const SECTIONS = [
   },
   {
     id: 'terms',
-    title: '현장 용어',
+    title: '현장 용어·전술 참고',
     icon: 'menu_book',
     color: 'text-cyan-400',
     items: [
       { code: '플래시오버', desc: 'Flashover — 전실 화재', detail: '실내 온도 500~600°C 도달 시 모든 가연물 동시 착화. 생존 불가 상태.' },
       { code: '백드래프트', desc: 'Backdraft — 역화', detail: '밀폐 공간에 산소 유입 시 폭발적 연소. 문 개방 전 반드시 열기/연기 확인.' },
       { code: '롤오버', desc: 'Rollover — 천장 화염', detail: '천장부 고온 가스 착화. 플래시오버 전조.' },
-      { code: 'RICS', desc: '고속분무 냉각기법', detail: '실내 진입 전 천장부 고온가스를 고속분무로 냉각' },
+      { code: 'RICS', desc: '고속분무 냉각기법', detail: '실내 진입 전 천장부 고온가스를 고속분무로 냉각 (기관별 용어 상이)' },
       { code: '방어적 전술', desc: 'Defensive — 외부 진압', detail: '내부 진입 불가 시 외부에서만 주수' },
       { code: '공격적 전술', desc: 'Offensive — 내부 진입', detail: '내부 진입 가능 시 화점 직접 공격' },
-      { code: '2-in 2-out', desc: '진입 안전 원칙', detail: '2명 이상 진입 시 외부 대기조 2명 필수' },
-      { code: 'RIT', desc: 'Rapid Intervention Team', detail: '긴급 구출팀 — MAYDAY 시 즉시 투입' },
+      { code: '2-in 2-out', desc: '진입 안전 원칙', detail: '2명 이상 진입 시 외부 대기조 2명 필수 (기관별 기준 상이)' },
+      { code: 'RIT', desc: 'Rapid Intervention Team', detail: '긴급 구출팀 — MAYDAY 시 즉시 투입 (기관별 용어 상이)' },
     ]
   },
 ];
+
+const normalize = (value: string) =>
+  value.replace(/\s+/g, '').toLowerCase();
 
 export default function RadioCodes() {
   const [search, setSearch] = useState('');
@@ -98,13 +100,13 @@ export default function RadioCodes() {
 
   const filtered = useMemo(() => {
     if (!search.trim()) return SECTIONS;
-    const q = search.toLowerCase();
+    const q = normalize(search);
     return SECTIONS.map(section => ({
       ...section,
       items: section.items.filter(item =>
-        item.code.toLowerCase().includes(q) ||
-        item.desc.toLowerCase().includes(q) ||
-        item.detail.toLowerCase().includes(q)
+        normalize(item.code).includes(q) ||
+        normalize(item.desc).includes(q) ||
+        normalize(item.detail).includes(q)
       )
     })).filter(s => s.items.length > 0);
   }, [search]);
@@ -122,10 +124,15 @@ export default function RadioCodes() {
             <span className="material-symbols-outlined text-blue-400 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>radio</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-on-surface">무전 코드 · 현장 용어</h2>
+            <h2 className="text-xl font-bold text-on-surface">현장 보고·용어 참고 카드</h2>
             <p className="text-xs text-on-surface-variant mt-0.5">화재 대응단계, 상황 보고, 경보 신호, 용어 사전</p>
           </div>
         </div>
+        
+        <p className="text-[11px] text-error mb-4 leading-relaxed font-bold bg-error/10 p-2 rounded-lg border border-error/20 flex items-start gap-2">
+          <span className="material-symbols-outlined text-[14px]">info</span>
+          기관별 무전 절차, 지휘관 지시, 최신 SOP를 우선하며 본 화면은 교육·참고용입니다.
+        </p>
 
         {/* 검색 */}
         <div className="relative">
@@ -143,6 +150,7 @@ export default function RadioCodes() {
       {/* 카테고리 탭 */}
       <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
         <button
+          type="button"
           onClick={() => setActiveSection(null)}
           className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
             !activeSection ? 'bg-primary text-on-primary shadow-lg' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
@@ -152,6 +160,7 @@ export default function RadioCodes() {
         </button>
         {SECTIONS.map(s => (
           <button
+            type="button"
             key={s.id}
             onClick={() => setActiveSection(activeSection === s.id ? null : s.id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
@@ -173,12 +182,14 @@ export default function RadioCodes() {
             <span className="text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{section.items.length}</span>
           </div>
           <div className="divide-y divide-outline-variant/10">
-            {section.items.map(item => {
-              const isExpanded = expandedItem === `${section.id}-${item.code}`;
+            {section.items.map((item, idx) => {
+              const itemKey = `${section.id}-${idx}-${item.code}`;
+              const isExpanded = expandedItem === itemKey;
               return (
                 <button
-                  key={item.code}
-                  onClick={() => setExpandedItem(isExpanded ? null : `${section.id}-${item.code}`)}
+                  type="button"
+                  key={itemKey}
+                  onClick={() => setExpandedItem(isExpanded ? null : itemKey)}
                   className="w-full text-left p-4 hover:bg-surface-container/30 transition-colors"
                 >
                   <div className="flex items-start gap-3">

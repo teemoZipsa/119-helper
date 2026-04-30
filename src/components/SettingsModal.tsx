@@ -16,6 +16,33 @@ interface SettingsModalProps {
 
 type SettingsTab = 'general' | 'notification' | 'shift';
 
+// ── 유틸리티 함수 ──
+const DEFAULT_SHIFT_SETTING: ShiftSetting = {
+  isActive: false,
+  baseDate: new Date().toISOString().split('T')[0],
+  baseShift: '당직',
+};
+
+const isValidShiftSetting = (value: any): value is ShiftSetting => {
+  return (
+    value &&
+    typeof value.isActive === 'boolean' &&
+    typeof value.baseDate === 'string' &&
+    SHIFT_CYCLE_DANGBIBI.includes(value.baseShift)
+  );
+};
+
+const normalizeRefreshInterval = (value: string) => {
+  return ['0', '1', '5', '10'].includes(value) ? value : '5';
+};
+
+const parseNumberOr = (value: string, fallback: number) => {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+
 // ── 토글 스위치 ──
 function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: (v: boolean) => void; size?: 'sm' | 'md' }) {
   const w = size === 'sm' ? 'w-9 h-5' : 'w-11 h-6';
@@ -23,6 +50,9 @@ function Toggle({ on, onChange, size = 'md' }: { on: boolean; onChange: (v: bool
   const pos = size === 'sm' ? (on ? 'left-[18px]' : 'left-[3px]') : (on ? 'left-6' : 'left-1');
   return (
     <button
+      type="button"
+      role="switch"
+      aria-checked={on}
       onClick={() => onChange(!on)}
       className={`${w} rounded-full transition-colors relative shrink-0 ${on ? 'bg-primary' : 'bg-surface-container-highest'}`}
     >
@@ -189,7 +219,7 @@ function NotificationTab({ ns, updateNs }: {
               <div className="flex items-center gap-2 ml-7 mb-1">
                 <span className="text-[10px] text-on-surface-variant">기준:</span>
                 <input type="number" value={ns.weather.heatwaveThreshold} min={30} max={45}
-                  onChange={e => updateWeather({ heatwaveThreshold: parseInt(e.target.value) || 35 })}
+                  onChange={e => updateWeather({ heatwaveThreshold: clamp(parseNumberOr(e.target.value, 35), 30, 45) })}
                   className="w-14 text-xs font-mono bg-surface-container border border-outline-variant/20 rounded px-1.5 py-0.5 text-on-surface" />
                 <span className="text-[10px] text-on-surface-variant">°C 이상</span>
               </div>
@@ -199,7 +229,7 @@ function NotificationTab({ ns, updateNs }: {
               <div className="flex items-center gap-2 ml-7 mb-1">
                 <span className="text-[10px] text-on-surface-variant">기준:</span>
                 <input type="number" value={ns.weather.coldwaveThreshold} min={-30} max={0}
-                  onChange={e => updateWeather({ coldwaveThreshold: parseInt(e.target.value) || -10 })}
+                  onChange={e => updateWeather({ coldwaveThreshold: clamp(parseNumberOr(e.target.value, -10), -30, 0) })}
                   className="w-14 text-xs font-mono bg-surface-container border border-outline-variant/20 rounded px-1.5 py-0.5 text-on-surface" />
                 <span className="text-[10px] text-on-surface-variant">°C 이하</span>
               </div>
@@ -209,7 +239,7 @@ function NotificationTab({ ns, updateNs }: {
               <div className="flex items-center gap-2 ml-7 mb-1">
                 <span className="text-[10px] text-on-surface-variant">기준:</span>
                 <input type="number" value={ns.weather.windThreshold} min={5} max={30}
-                  onChange={e => updateWeather({ windThreshold: parseInt(e.target.value) || 14 })}
+                  onChange={e => updateWeather({ windThreshold: clamp(parseNumberOr(e.target.value, 14), 5, 30) })}
                   className="w-14 text-xs font-mono bg-surface-container border border-outline-variant/20 rounded px-1.5 py-0.5 text-on-surface" />
                 <span className="text-[10px] text-on-surface-variant">m/s 이상</span>
               </div>
@@ -282,7 +312,7 @@ function ShiftTab({ setting, setSetting }: { setting: ShiftSetting; setSetting: 
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-lg">calendar_month</span>
-          교대근무 스케줄 연동
+          교대근무 스케줄 표시 설정
         </span>
         <Toggle on={setting.isActive} onChange={(v) => setSetting({ ...setting, isActive: v })} size="sm" />
       </div>
@@ -309,6 +339,7 @@ function ShiftTab({ setting, setSetting }: { setting: ShiftSetting; setSetting: 
               {SHIFT_CYCLE_DANGBIBI.map(shift => (
                 <button
                   key={shift}
+                  type="button"
                   onClick={() => setSetting({ ...setting, baseShift: shift as ShiftType })}
                   className={`py-2 rounded-xl text-sm font-bold border transition-colors ${
                     setting.baseShift === shift 
@@ -333,36 +364,43 @@ function ShiftTab({ setting, setSetting }: { setting: ShiftSetting; setSetting: 
 // ══════════════════════════════════════════
 export default function SettingsModal({ isOpen, onClose, city, onCityChange, cityNames }: SettingsModalProps) {
   const [tab, setTab] = useState<SettingsTab>('general');
+  const [draftCity, setDraftCity] = useState(city);
   const [refreshInterval, setRefreshInterval] = useState('5');
   const [ns, setNs] = useState<NotificationSettings>(loadNotificationSettings());
-  const [shiftSetting, setShiftSetting] = useState<ShiftSetting>({
-    isActive: false,
-    baseDate: new Date().toISOString().split('T')[0],
-    baseShift: '당직',
-  });
+  const [shiftSetting, setShiftSetting] = useState<ShiftSetting>(DEFAULT_SHIFT_SETTING);
 
   useEffect(() => {
     if (isOpen) {
-      setRefreshInterval(localStorage.getItem('119helper-refresh') || '5');
+      setDraftCity(city);
+      setRefreshInterval(normalizeRefreshInterval(localStorage.getItem('119helper-refresh') || '5'));
       setNs(loadNotificationSettings());
       
       try {
         const savedShift = localStorage.getItem('119helper-shift-setting');
-        if (savedShift) setShiftSetting(JSON.parse(savedShift));
-      } catch { /* JSON 파싱 실패 시 기본값 유지 */ }
+        if (savedShift) {
+          const parsed = JSON.parse(savedShift);
+          setShiftSetting(isValidShiftSetting(parsed) ? parsed : DEFAULT_SHIFT_SETTING);
+        } else {
+          setShiftSetting(DEFAULT_SHIFT_SETTING);
+        }
+      } catch {
+        setShiftSetting(DEFAULT_SHIFT_SETTING);
+      }
 
       setTab('general');
     }
-  }, [isOpen]);
+  }, [isOpen, city]);
 
   const updateNs = (patch: Partial<NotificationSettings>) =>
     setNs(prev => ({ ...prev, ...patch }));
 
   const handleSave = () => {
+    onCityChange(draftCity);
     saveNotificationSettings(ns);
-    localStorage.setItem('119helper-refresh', refreshInterval);
+    localStorage.setItem('119helper-refresh', normalizeRefreshInterval(refreshInterval));
     localStorage.setItem('119helper-sound', ns.soundEnabled.toString());
     localStorage.setItem('119helper-shift-setting', JSON.stringify(shiftSetting));
+    window.dispatchEvent(new Event('119helper-settings-updated'));
     onClose();
   };
 
@@ -376,14 +414,14 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
 
   return (
     <div className="absolute right-0 top-full mt-2 z-50 p-2">
-      <div className="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-xl w-[360px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+      <div className="bg-surface-container-high border border-outline-variant/20 rounded-2xl shadow-xl w-[360px] overflow-hidden animate-slide-in-top">
         {/* 헤더 */}
         <div className="p-3 border-b border-outline-variant/20 flex items-center justify-between bg-surface-container">
           <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">settings</span>
             환경 설정
           </h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-container-high transition-colors">
+          <button type="button" onClick={onClose} aria-label="설정 닫기" className="p-1 rounded-lg hover:bg-surface-container-high transition-colors">
             <span className="material-symbols-outlined text-on-surface-variant">close</span>
           </button>
         </div>
@@ -393,6 +431,7 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
           {tabs.map(t => (
             <button
               key={t.id}
+              type="button"
               onClick={() => setTab(t.id)}
               className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-all border-b-2 ${
                 tab === t.id
@@ -410,7 +449,7 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
         <div className="max-h-[55vh] overflow-y-auto custom-scrollbar">
           {tab === 'general' && (
             <GeneralTab
-              city={city} onCityChange={onCityChange} cityNames={cityNames}
+              city={draftCity} onCityChange={setDraftCity} cityNames={cityNames}
               refreshInterval={refreshInterval} setRefreshInterval={setRefreshInterval}
               ns={ns} updateNs={updateNs}
             />
@@ -425,10 +464,10 @@ export default function SettingsModal({ isOpen, onClose, city, onCityChange, cit
 
         {/* 하단바 */}
         <div className="p-3 border-t border-outline-variant/20 bg-surface-container-low flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors">
             취소
           </button>
-          <button onClick={handleSave} className="px-4 py-2 text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all cursor-pointer">
+          <button type="button" onClick={handleSave} className="px-4 py-2 text-sm font-bold bg-primary text-on-primary hover:bg-primary/90 rounded-xl shadow-lg shadow-primary/20 transition-all cursor-pointer">
             저장하기
           </button>
         </div>

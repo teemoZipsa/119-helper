@@ -14,8 +14,8 @@ function WaterPressureCalc() {
   const [results, setResults] = useState<CalcResult[]>([]);
 
   const calculate = () => {
-    const f = parseInt(floors);
-    if (isNaN(f) || f < 1) return;
+    const f = Number(floors);
+    if (!Number.isInteger(f) || f < 1 || f > 200) return;
     const floorHeight = 3; // 층고 평균 3m
     const realHead = f * floorHeight; // 실양정 (m)
     const frictionLoss = realHead * 0.15; // 배관 마찰손실 (실양정의 약 15%)
@@ -37,7 +37,7 @@ function WaterPressureCalc() {
   };
 
   return (
-    <div id="water_pressure_calc" className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6 space-y-4">
+    <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl p-6 space-y-4">
       <div className="flex items-center gap-3 mb-2">
         <div className="p-2 bg-primary/10 rounded-lg">
           <span className="material-symbols-outlined text-primary text-2xl">water_drop</span>
@@ -53,11 +53,14 @@ function WaterPressureCalc() {
           min="1"
           max="200"
           value={floors}
-          onChange={(e) => setFloors(e.target.value)}
+          onChange={(e) => {
+            setFloors(e.target.value);
+            setResults([]);
+          }}
           placeholder="건물 층수 입력"
           className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
-        <button onClick={calculate} className="bg-primary text-on-primary px-6 py-3 rounded-lg font-bold hover:bg-primary/80 transition-colors">
+        <button type="button" onClick={calculate} className="bg-primary text-on-primary px-6 py-3 rounded-lg font-bold hover:bg-primary/80 transition-colors">
           계산
         </button>
       </div>
@@ -69,6 +72,7 @@ function WaterPressureCalc() {
               <span className="text-sm text-on-surface font-mono">{r.value} <span className="text-on-surface-variant text-xs">{r.unit}</span></span>
             </div>
           ))}
+          <p className="text-[11px] text-on-surface-variant mt-3">※ 평균 층고 3m, 마찰손실 15%, 노즐 방수압력 0.35MPa 기준의 간이 계산입니다.</p>
         </div>
       )}
     </div>
@@ -81,8 +85,9 @@ function HoseLengthCalc() {
   const [results, setResults] = useState<CalcResult[]>([]);
 
   const calculate = () => {
-    const d = parseFloat(distance) || 0;
-    const f = parseInt(floors) || 0;
+    const d = Number(distance);
+    const f = Number(floors);
+    if (!Number.isFinite(d) || !Number.isInteger(f) || d < 0 || f < 0) return;
     const hoseLength = 20; // 소방호스 1본 = 20m
     const floorHeight = 3;
     const verticalDist = f * floorHeight;
@@ -116,7 +121,7 @@ function HoseLengthCalc() {
           type="number"
           min="0"
           value={distance}
-          onChange={(e) => setDistance(e.target.value)}
+          onChange={(e) => { setDistance(e.target.value); setResults([]); }}
           placeholder="수평 거리 (m)"
           className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
@@ -124,11 +129,11 @@ function HoseLengthCalc() {
           type="number"
           min="0"
           value={floors}
-          onChange={(e) => setFloors(e.target.value)}
+          onChange={(e) => { setFloors(e.target.value); setResults([]); }}
           placeholder="건물 층수"
           className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
-        <button onClick={calculate} className="bg-secondary text-on-secondary px-6 py-3 rounded-lg font-bold hover:bg-secondary/80 transition-colors">
+        <button type="button" onClick={calculate} className="bg-secondary text-on-secondary px-6 py-3 rounded-lg font-bold hover:bg-secondary/80 transition-colors">
           계산
         </button>
       </div>
@@ -154,13 +159,14 @@ function AirTankTimer() {
   const startTimeRef = useRef<number>(0);
 
   const startTimer = () => {
-    const p = parseFloat(pressure);
-    if (isNaN(p) || p <= 0) return;
+    const p = Number(pressure);
+    if (!Number.isFinite(p) || p <= 0 || p > 300) return;
     // 공기호흡기: 약 6.8L 용기, 40L/분 평균 소비량 기준
     // 사용가능시간(분) = (용기 용량 × 충전압력) / 소비량
     // 간이 계산: 300bar 충전 기준 약 30분
     const minutes = Math.floor((p / 300) * 30);
     const seconds = minutes * 60;
+    if (seconds <= 0) return;
     setTotalTime(seconds);
     setTimeLeft(seconds);
     startTimeRef.current = Date.now();
@@ -204,6 +210,7 @@ function AirTankTimer() {
         <div>
           <h3 className="text-lg font-bold text-on-surface">공기호흡기 타이머</h3>
           <p className="text-xs text-on-surface-variant">충전 압력 입력 → 잔여 시간 카운트다운</p>
+          <p className="text-[11px] text-on-surface-variant leading-relaxed mt-1">※ 간이 참고용 타이머입니다. 실제 철수 판단은 장비 경보, 잔압 기준, 현장 지휘 지침을 우선하세요.</p>
         </div>
       </div>
 
@@ -218,7 +225,7 @@ function AirTankTimer() {
             placeholder="충전 압력 (bar, 최대 300)"
             className="flex-1 bg-surface-container border border-outline-variant/20 rounded-lg px-4 py-3 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <button onClick={startTimer} className="bg-tertiary text-on-tertiary px-6 py-3 rounded-lg font-bold hover:bg-tertiary/80 transition-colors">
+          <button type="button" onClick={startTimer} className="bg-tertiary text-on-tertiary px-6 py-3 rounded-lg font-bold hover:bg-tertiary/80 transition-colors">
             시작
           </button>
         </div>
@@ -234,9 +241,9 @@ function AirTankTimer() {
             />
           </div>
           {isWarning && (
-            <p className="text-error font-bold text-sm animate-pulse">⚠️ 잔압 부족! 즉시 철수하세요!</p>
+            <p className="text-error font-bold text-sm animate-pulse">⚠️ 잔여 시간이 부족합니다. 장비 잔압과 지휘 지침을 확인하세요.</p>
           )}
-          <button onClick={stopTimer} className="bg-error text-on-error px-6 py-3 rounded-lg font-bold hover:bg-error/80 transition-colors">
+          <button type="button" onClick={stopTimer} className="bg-error text-on-error px-6 py-3 rounded-lg font-bold hover:bg-error/80 transition-colors">
             정지 / 리셋
           </button>
         </div>
@@ -245,17 +252,32 @@ function AirTankTimer() {
   );
 }
 
+type CalcTab = 'overtime' | 'field' | 'air_tank' | 'hazmat' | 'unit';
+const TABS: { id: CalcTab; label: string; icon: string }[] = [
+  { id: 'overtime', label: '초과수당', icon: 'payments' },
+  { id: 'field', label: '현장계산', icon: 'water_drop' },
+  { id: 'air_tank', label: '공기호흡기', icon: 'timer' },
+  { id: 'hazmat', label: '유해화학', icon: 'science' },
+  { id: 'unit', label: '단위변환', icon: 'sync_alt' },
+];
+
 export default function Calculators({ subId }: { subId?: string }) {
-  const [activeTab, setActiveTab] = useState<'overtime' | 'field' | 'air_tank' | 'hazmat' | 'unit'>('overtime');
+  const [activeTab, setActiveTab] = useState<CalcTab>('overtime');
 
   useEffect(() => {
     // subId mapper
-    if (subId) {
-      if (subId === 'hazmat_calc') setActiveTab('hazmat');
-      else if (subId === 'water_pressure_calc' || subId === 'hose_length_calc') setActiveTab('field');
-      else if (subId === 'air_tank_timer') setActiveTab('air_tank');
-      else if (subId === 'unit_converter') setActiveTab('unit');
-    }
+    if (!subId) return;
+    if (subId === 'hazmat_calc') setActiveTab('hazmat');
+    else if (subId === 'water_pressure_calc' || subId === 'hose_length_calc') setActiveTab('field');
+    else if (subId === 'air_tank_timer') setActiveTab('air_tank');
+    else if (subId === 'unit_converter') setActiveTab('unit');
+
+    requestAnimationFrame(() => {
+      document.getElementById(subId)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
   }, [subId]);
 
   return (
@@ -266,19 +288,14 @@ export default function Calculators({ subId }: { subId?: string }) {
       </div>
 
       <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
-        {[
-          { id: 'overtime', label: '초과수당', icon: 'payments' },
-          { id: 'field', label: '현장계산', icon: 'water_drop' },
-          { id: 'air_tank', label: '공기호흡기', icon: 'timer' },
-          { id: 'hazmat', label: '유해화학', icon: 'science' },
-          { id: 'unit', label: '단위변환', icon: 'sync_alt' }
-        ].map(tab => (
+        {TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold whitespace-nowrap transition-colors ${
               activeTab === tab.id
-                ? 'bg-primary text-onPrimary shadow-md'
+                ? 'bg-primary text-on-primary shadow-md'
                 : 'bg-surface-container text-on-surface-variant hover:bg-surface-variant/80'
             }`}
           >
@@ -290,32 +307,32 @@ export default function Calculators({ subId }: { subId?: string }) {
 
       <div className="flex-1 w-full relative">
         {activeTab === 'overtime' && (
-          <div className="h-full animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+          <div className="h-full animate-slide-in-bottom pb-10">
             <OvertimeCalc />
           </div>
         )}
         
         {activeTab === 'field' && (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-slide-in-bottom pb-10">
             <div id="water_pressure_calc"><WaterPressureCalc /></div>
             <div id="hose_length_calc"><HoseLengthCalc /></div>
           </div>
         )}
 
         {activeTab === 'air_tank' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slide-in-bottom pb-10">
             <div id="air_tank_timer"><AirTankTimer /></div>
           </div>
         )}
 
         {activeTab === 'hazmat' && (
-          <div id="hazmat_calc" className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+          <div id="hazmat_calc" className="animate-slide-in-bottom pb-10">
             <HazmatCalc />
           </div>
         )}
 
         {activeTab === 'unit' && (
-          <div id="unit_converter" className="animate-in fade-in slide-in-from-bottom-2 duration-300 pb-10">
+          <div id="unit_converter" className="animate-slide-in-bottom pb-10">
             <UnitConverter />
           </div>
         )}

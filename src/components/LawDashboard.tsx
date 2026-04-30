@@ -32,16 +32,29 @@ function cleanText(s?: string): string {
     .trim();
 }
 
+const formatParagraphNo = (value?: string) => {
+  const n = Number.parseInt(value || '', 10);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n >= 1 && n <= 20) return String.fromCodePoint(9311 + n);
+  return `${n}항`;
+};
+
+const getArticleKey = (article: LawArticle, index: number) => {
+  return [
+    article.조문번호 || 'no',
+    (article as any).조문가지번호 || '0',
+    article.조문제목 || '',
+    index,
+  ].join('-');
+};
+
 export default function LawDashboard({ subId }: { subId?: string }) {
   const [activeTab, setActiveTab] = useState<'SEARCH' | 'DEFENSE'>(subId === 'DEFENSE' ? 'DEFENSE' : 'SEARCH');
   
   // subId가 변경될 때마다 탭 업데이트
   useEffect(() => {
-    if (subId === 'DEFENSE') {
-      setActiveTab('DEFENSE');
-    } else if (subId === 'SEARCH') {
-      setActiveTab('SEARCH');
-    }
+    if (subId === 'DEFENSE') setActiveTab('DEFENSE');
+    else setActiveTab('SEARCH');
   }, [subId]);
   
   const [query, setQuery] = useState('');
@@ -58,24 +71,36 @@ export default function LawDashboard({ subId }: { subId?: string }) {
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchSeqRef = useRef(0);
+  const detailSeqRef = useRef(0);
 
   // ── 검색 ──
   const doSearch = useCallback(async (q: string, p = 1) => {
     if (!q.trim()) return;
+    const seq = ++searchSeqRef.current;
+    
     setLoading(true);
     setError('');
     setDetail(null);
+    setDetailError('');
+    
     try {
       const res = await searchLaw(q.trim(), p);
+      if (seq !== searchSeqRef.current) return;
+      
       setItems(res.items);
       setTotalCnt(res.totalCnt);
       setPage(p);
       setQuery(q);
-    } catch (e: any) {
-      setError(e.message || '검색 실패');
+    } catch (err) {
+      if (seq !== searchSeqRef.current) return;
+      
+      setError(err instanceof Error ? err.message : '검색 실패');
       setItems([]);
     } finally {
-      setLoading(false);
+      if (seq === searchSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -86,16 +111,26 @@ export default function LawDashboard({ subId }: { subId?: string }) {
 
   // ── 본문 로드 ──
   const loadDetail = useCallback(async (mst: string) => {
+    const seq = ++detailSeqRef.current;
+    
     setDetailLoading(true);
     setDetailError('');
+    setDetail(null);
     setExpandedArticles(new Set());
+    
     try {
       const res = await getLawDetail(mst);
+      if (seq !== detailSeqRef.current) return;
+      
       setDetail(res);
-    } catch (e: any) {
-      setDetailError(e.message || '본문 로드 실패');
+    } catch (err) {
+      if (seq !== detailSeqRef.current) return;
+      
+      setDetailError(err instanceof Error ? err.message : '본문 로드 실패');
     } finally {
-      setDetailLoading(false);
+      if (seq === detailSeqRef.current) {
+        setDetailLoading(false);
+      }
     }
   }, []);
 
@@ -110,7 +145,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
 
   const expandAll = () => {
     const articles = asArray(detail?.법령?.조문?.조문단위);
-    setExpandedArticles(new Set(articles.map(a => a.조문번호)));
+    setExpandedArticles(new Set(articles.map((a, i) => getArticleKey(a, i))));
   };
 
   const collapseAll = () => setExpandedArticles(new Set());
@@ -141,6 +176,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
         {/* 탭 네비게이션 */}
         <div className="flex bg-surface-container-low p-1 rounded-xl">
           <button
+            type="button"
             onClick={() => setActiveTab('SEARCH')}
             className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${
               activeTab === 'SEARCH' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'
@@ -149,6 +185,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
             법령 검색
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('DEFENSE')}
             className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-1.5 ${
               activeTab === 'DEFENSE' ? 'bg-amber-500 text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container'
@@ -168,6 +205,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
           <div className="bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <button
+                type="button"
                 onClick={() => setDetail(null)}
                 className="p-2 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
               >
@@ -205,12 +243,14 @@ export default function LawDashboard({ subId }: { subId?: string }) {
             {/* 전체 펼치기/접기 */}
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={expandAll}
                 className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary font-bold hover:bg-primary/20 transition-colors"
               >
                 전체 펼치기
               </button>
               <button
+                type="button"
                 onClick={collapseAll}
                 className="text-xs px-3 py-1.5 rounded-lg bg-surface-container-high text-on-surface-variant font-bold hover:bg-surface-container-highest transition-colors"
               >
@@ -224,18 +264,19 @@ export default function LawDashboard({ subId }: { subId?: string }) {
 
           {/* 조문 목록 */}
           <div className="space-y-2">
-            {articles.map((article: LawArticle) => {
-              const joNo = article.조문번호;
-              const isOpen = expandedArticles.has(joNo);
+            {articles.map((article: LawArticle, index) => {
+              const articleKey = getArticleKey(article, index);
+              const isOpen = expandedArticles.has(articleKey);
               const title = article.조문제목 ? cleanText(article.조문제목) : '';
               const content = cleanText(article.조문내용);
               const paragraphs = asArray(article.항);
+              const joNo = article.조문번호;
               const joLabel = joNo ? `제${parseInt(joNo)}조` : '';
               const hasDeleteMark = article.조문여부 === 'N';
 
               return (
                 <div
-                  key={joNo}
+                  key={articleKey}
                   className={`bg-surface-container-lowest border rounded-xl overflow-hidden transition-colors ${
                     hasDeleteMark
                       ? 'border-outline-variant/5 opacity-50'
@@ -245,7 +286,8 @@ export default function LawDashboard({ subId }: { subId?: string }) {
                   }`}
                 >
                   <button
-                    onClick={() => toggleArticle(joNo)}
+                    type="button"
+                    onClick={() => toggleArticle(articleKey)}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left"
                   >
                     <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
@@ -279,7 +321,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
                               <div key={para.항번호}>
                                 <p className="text-sm text-on-surface leading-relaxed">
                                   <span className="text-amber-600 dark:text-amber-400 font-bold mr-1">
-                                    &#9312;{parseInt(para.항번호) > 1 ? String.fromCodePoint(9311 + parseInt(para.항번호)) : ''}
+                                    {formatParagraphNo(para.항번호)}
                                   </span>
                                   {cleanText(para.항내용)}
                                 </p>
@@ -325,6 +367,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
               {FIRE_LAW_PRESETS.map(preset => (
                 <button
                   key={preset.label}
+                  type="button"
                   onClick={() => { setQuery(preset.query); doSearch(preset.query, 1); }}
                   className={`px-3 py-2 text-sm font-bold rounded-xl border transition-all ${
                     query === preset.query
@@ -369,6 +412,13 @@ export default function LawDashboard({ subId }: { subId?: string }) {
               {error}
             </div>
           )}
+          
+          {detailError && !detailLoading && (
+            <div className="bg-error/10 border border-error/20 text-error rounded-xl p-4 text-sm font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-lg">warning</span>
+              {detailError}
+            </div>
+          )}
 
           {/* 로딩 */}
           {loading && (
@@ -389,6 +439,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
                 {items.map(item => (
                   <button
                     key={item.법령일련번호}
+                    type="button"
                     onClick={() => loadDetail(item.법령일련번호)}
                     disabled={detailLoading}
                     className="group text-left bg-surface-container-lowest border border-outline-variant/10 rounded-2xl p-4 hover:shadow-lg hover:border-amber-500/30 hover:-translate-y-0.5 transition-all duration-200"
@@ -445,6 +496,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
               {totalCnt > 20 && (
                 <div className="flex items-center justify-center gap-2 pt-4">
                   <button
+                    type="button"
                     onClick={() => doSearch(query, page - 1)}
                     disabled={page <= 1}
                     className="px-3 py-1.5 text-xs font-bold rounded-lg bg-surface-container-high text-on-surface-variant disabled:opacity-30 hover:bg-surface-container-highest transition-colors"
@@ -455,6 +507,7 @@ export default function LawDashboard({ subId }: { subId?: string }) {
                     {page} / {Math.ceil(totalCnt / 20)}
                   </span>
                   <button
+                    type="button"
                     onClick={() => doSearch(query, page + 1)}
                     disabled={page >= Math.ceil(totalCnt / 20)}
                     className="px-3 py-1.5 text-xs font-bold rounded-lg bg-surface-container-high text-on-surface-variant disabled:opacity-30 hover:bg-surface-container-highest transition-colors"

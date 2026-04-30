@@ -9,238 +9,286 @@ import tsunamiData from '../../public/data/tsunami.json';
 import { civilData } from '../data/civilData';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://119-helper-api.teemozipsa.workers.dev';
+const API_TIMEOUT_MS = 15_000;
+const CACHE_PREFIX = '119_cache_v1_';
 
-const API_TIMEOUT_MS = 15_000; // 15초 타임아웃
-
-function humanizeApiError(status: number, body: string): string {
-  if (status === 502) return 'API 서비스 승인 대기 중이거나 공공데이터 서버 점검 중입니다.';
-  if (status === 520) return '공공데이터 서버 연결 오류입니다. 잠시 후 다시 시도해주세요.';
-  if (status === 403) return 'API 접근이 거부되었습니다. 서비스 키를 확인하세요.';
-  if (status === 429) return 'API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.';
-  if (status >= 500) return `공공데이터 서버 오류 (${status})`;
-  return `API 오류 (${status}): ${body}`;
+export class StaleDataError extends Error {
+  cachedData: any;
+  cachedAt: number;
+  constructor(cachedData: any, message: string, cachedAt: number) {
+    super(message);
+    this.name = 'StaleDataError';
+    this.cachedData = cachedData;
+    this.cachedAt = cachedAt;
+  }
 }
 
-export async function apiFetch<T>(path: string, params?: Record<string, string>, timeoutMs = API_TIMEOUT_MS): Promise<T> {
+export function isStaleDataError(err: any): err is StaleDataError {
+  return err instanceof StaleDataError || (err && typeof err === 'object' && err.name === 'StaleDataError' && 'cachedData' in err);
+}
+
+interface CacheItem {
+  version: number;
+  cachedAt: number;
+  data: any;
+}
+
+export interface ApiFetchOptions {
+  useCache?: boolean;
+  cacheTtlMs?: number;
+  customCacheKey?: string;
+  timeoutMs?: number;
+  forceRefresh?: boolean;
+}
+
+function humanizeApiError(status: number, body: string): string {
+  const text = body.toLowerCase();
+  
+  if (text.includes('invalid_json')) {
+    return '공공데이터 서버 응답 오류 (JSON 파싱 실패)입니다. 잠시 후 다시 시도해주세요.';
+  }
+  if (status === 429 || text.includes('limit') || text.includes('초과') || text.includes('22')) {
+    return 'API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.';
+  }
+  if (status === 401 || status === 403 || text.includes('service_key') || text.includes('access_denied') || text.includes('승인') || text.includes('인증') || text.includes('30')) {
+    return 'API 키가 유효하지 않거나 서비스 승인 대기 중입니다.';
+  }
+  if (status === 404 || text.includes('no data') || text.includes('빈 응답') || text.includes('결과가 없습니다') || text.includes('empty_data') || text.includes('03')) {
+    return '제공된 데이터가 없습니다.';
+  }
+  if (status >= 500 || text.includes('timeout') || text.includes('failed to fetch') || text.includes('network') || status === 0 || text.includes('01') || text.includes('02') || text.includes('04')) {
+    return '공공데이터 서버 연결 오류 또는 응답 지연입니다.';
+  }
+  return `API 오류 (${status}): 서버에서 데이터를 처리할 수 없습니다.`;
+}
+
+function saveToCache(key: string, data: any) {
+  try {
+    const item: CacheItem = { version: 1, cachedAt: Date.now(), data };
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+  } catch (e: any) {
+    // Handle QuotaExceededError
+    if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(CACHE_PREFIX)) keysToRemove.push(k);
+        }
+        // Remove 20% of oldest items or just clear them all to be safe and simple
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        const item: CacheItem = { version: 1, cachedAt: Date.now(), data };
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+      } catch (inner) {
+        // Ignore if still fails
+      }
+    }
+  }
+}
+
+function getFromCache(key: string, ttlMs?: number): { data: any; cachedAt: number } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const item: CacheItem = JSON.parse(raw);
+    if (item.version !== 1) return null;
+    if (ttlMs && Date.now() - item.cachedAt > ttlMs) {
+      // TTL expired, do not return for normal fetch, but allow for fallback if we don't pass ttlMs
+      return null;
+    }
+    return { data: item.data, cachedAt: item.cachedAt };
+  } catch (e) {
+    // If parse fails or structure is broken, clean it up
+    try { localStorage.removeItem(CACHE_PREFIX + key); } catch {}
+    return null;
+  }
+}
+
+const inFlightRequests = new Map<string, Promise<any>>();
+
+export async function apiFetch<T>(path: string, params?: Record<string, string>, options?: ApiFetchOptions): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v) url.searchParams.set(k, v);
     });
+    url.searchParams.sort();
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const {
+    useCache = true,
+    cacheTtlMs = 1000 * 60 * 60 * 24 * 7, // Default 7 days
+    customCacheKey,
+    timeoutMs = API_TIMEOUT_MS,
+    forceRefresh = false,
+  } = options || {};
 
+  const safeKey = customCacheKey || encodeURIComponent(url.pathname + url.search);
+  const cacheKey = safeKey;
+
+  // Deduplication
+  if (inFlightRequests.has(cacheKey) && !forceRefresh) {
+    return inFlightRequests.get(cacheKey) as Promise<T>;
+  }
+
+  const promise = (async () => {
+    // 1. Try Cache if within TTL
+    if (useCache && !forceRefresh) {
+      const cached = getFromCache(cacheKey, cacheTtlMs);
+      if (cached) {
+        return cached.data;
+      }
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response | undefined;
+    let bodyText = '';
+    let isTimeout = false;
+
+    try {
+      res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
+      bodyText = await res.text().catch(() => '');
+
+      if (!res.ok) {
+        console.warn(`[API Error] ${url.pathname} | Status: ${res.status} | Body: ${bodyText.slice(0, 150)}`);
+        throw new Error('HTTP_ERROR');
+      }
+
+      let data;
+      try {
+        data = bodyText ? JSON.parse(bodyText) : null;
+      } catch (e) {
+        throw new Error('INVALID_JSON');
+      }
+      if (!data) throw new Error('EMPTY_DATA');
+
+      if (data && typeof data === 'object' && 'error' in data) {
+        console.warn(`[API Logic Error] ${url.pathname} | Error: ${JSON.stringify(data).slice(0, 150)}`);
+        throw new Error('API_LOGIC_ERROR');
+      }
+
+      if (useCache) {
+        saveToCache(cacheKey, data);
+      }
+      return data;
+    } catch (err: any) {
+      if (err.name === 'AbortError') isTimeout = true;
+
+      const causeText = isTimeout ? 'timeout' : (err.message + ' ' + bodyText);
+      const errMsg = humanizeApiError(res?.status || 0, causeText);
+
+      console.warn(`[API Fetch Failed] ${url.pathname} -> ${errMsg}`);
+
+      if (useCache) {
+        // Retrieve expired cache if available as fallback
+        const fallback = getFromCache(cacheKey); // No TTL check
+        if (fallback) {
+          throw new StaleDataError(fallback.data, errMsg, fallback.cachedAt);
+        }
+      }
+
+      throw new Error(errMsg);
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, promise);
   try {
-    const res = await fetch(url.toString(), { cache: 'no-store', signal: controller.signal });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(humanizeApiError(res.status, body));
-    }
-
-    const data = await res.json();
-
-    if (data && typeof data === 'object' && 'error' in data) {
-      throw new Error(data.message || `에러 발생: ${data.error}`);
-    }
-
-    return data;
-  } catch (err: any) {
-    if (err.name === 'AbortError') {
-      throw new Error('API 응답 시간 초과 (15초). 공공데이터 서버가 응답하지 않습니다.');
-    }
-    throw err;
+    return await promise;
   } finally {
-    clearTimeout(timer);
+    inFlightRequests.delete(cacheKey);
   }
 }
 
-async function apiFetchXml(path: string, params?: Record<string, string>): Promise<string> {
-  const data = await apiFetch<{ xml: string }>(path, params);
+async function apiFetchXml(path: string, params?: Record<string, string>, options?: ApiFetchOptions): Promise<string> {
+  const data = await apiFetch<{ xml: string }>(path, params, options);
   return data.xml;
 }
 
-// ═══════ 날씨 ═══════
+// ═══════ 날씨 (TTL 짧게 30분) ═══════
+const WEATHER_OPTS: ApiFetchOptions = { cacheTtlMs: 1000 * 60 * 30 };
+export async function fetchWeatherNow(nx: number, ny: number) { return apiFetch<any[]>('/api/weather/now', { nx: String(nx), ny: String(ny) }, WEATHER_OPTS); }
+export async function fetchWeatherUltra(nx: number, ny: number) { return apiFetch<any[]>('/api/weather/ultra', { nx: String(nx), ny: String(ny) }, WEATHER_OPTS); }
+export async function fetchWeatherForecast(nx: number, ny: number) { return apiFetch<any[]>('/api/weather/forecast', { nx: String(nx), ny: String(ny) }, WEATHER_OPTS); }
+export async function fetchMidLand(regId: string) { return apiFetch<any[]>('/api/weather/mid-land', { regId }, WEATHER_OPTS); }
+export async function fetchMidTemp(regId: string) { return apiFetch<any[]>('/api/weather/mid-temp', { regId }, WEATHER_OPTS); }
+export async function fetchWeatherBriefing(stnId: string) { return apiFetch<{ briefing: string }>('/api/weather/briefing', { stnId }, WEATHER_OPTS); }
 
-export async function fetchWeatherNow(nx: number, ny: number) {
-  return apiFetch<any[]>('/api/weather/now', { nx: String(nx), ny: String(ny) });
+// ═══════ 대기질 (TTL 짧게 30분) ═══════
+const AIR_OPTS: ApiFetchOptions = { cacheTtlMs: 1000 * 60 * 30 };
+export async function fetchAirQuality(sido: string) { return apiFetch<any[]>('/api/air', { sido }, AIR_OPTS); }
+
+// ═══════ 응급실 (TTL 짧게 5분) ═══════
+const ER_OPTS: ApiFetchOptions = { cacheTtlMs: 1000 * 60 * 5 };
+export async function fetchERBeds(sido: string, gugun?: string) { return apiFetchXml('/api/er/beds', { sido, gugun: gugun || '' }, ER_OPTS); }
+export async function fetchERList(sido: string, gugun?: string) { return apiFetchXml('/api/er/list', { sido, gugun: gugun || '' }, ER_OPTS); }
+export async function fetchERMessages(sido: string, gugun?: string) { return apiFetchXml('/api/er/messages', { sido, gugun: gugun || '' }, ER_OPTS); }
+export async function fetchERSevereIllness(sido: string, gugun?: string) { return apiFetchXml('/api/er/severe-illness', { sido, gugun: gugun || '' }, ER_OPTS); }
+
+// ═══════ 건축물대장 (변경 적음 7일) ═══════
+export async function fetchBuildingInfo(params: { sigunguCd: string; bjdongCd: string; platGbCd: string; bun: string; ji: string; }, forceRefresh?: boolean) {
+  return apiFetch<any[]>('/api/building', params, { forceRefresh });
 }
 
-export async function fetchWeatherUltra(nx: number, ny: number) {
-  return apiFetch<any[]>('/api/weather/ultra', { nx: String(nx), ny: String(ny) });
-}
+// ═══════ 소방용수 (7일) ═══════
+export async function fetchFireWater(city: string) { return apiFetch<any[]>('/api/firewater', { city }); }
 
-export async function fetchWeatherForecast(nx: number, ny: number) {
-  return apiFetch<any[]>('/api/weather/forecast', { nx: String(nx), ny: String(ny) });
-}
-
-export async function fetchMidLand(regId: string) {
-  return apiFetch<any[]>('/api/weather/mid-land', { regId });
-}
-
-export async function fetchMidTemp(regId: string) {
-  return apiFetch<any[]>('/api/weather/mid-temp', { regId });
-}
-
-export async function fetchWeatherBriefing(stnId: string) {
-  return apiFetch<{ briefing: string }>('/api/weather/briefing', { stnId });
-}
-
-// ═══════ 대기질 ═══════
-
-export async function fetchAirQuality(sido: string) {
-  return apiFetch<any[]>('/api/air', { sido });
-}
-
-// ═══════ 응급실 ═══════
-
-export async function fetchERBeds(sido: string, gugun?: string) {
-  return apiFetchXml('/api/er/beds', { sido, gugun: gugun || '' });
-}
-
-export async function fetchERList(sido: string, gugun?: string) {
-  return apiFetchXml('/api/er/list', { sido, gugun: gugun || '' });
-}
-
-export async function fetchERMessages(sido: string, gugun?: string) {
-  return apiFetchXml('/api/er/messages', { sido, gugun: gugun || '' });
-}
-
-export async function fetchERSevereIllness(sido: string, gugun?: string) {
-  return apiFetchXml('/api/er/severe-illness', { sido, gugun: gugun || '' });
-}
-
-// ═══════ 건축물대장 ═══════
-
-export async function fetchBuildingInfo(params: {
-  sigunguCd: string; bjdongCd: string; platGbCd: string; bun: string; ji: string;
-}) {
-  return apiFetch<any[]>('/api/building', params);
-}
-
-// ═══════ 소방용수 ═══════
-
-export async function fetchFireWater(city: string) {
-  return apiFetch<any[]>('/api/firewater', { city });
-}
-
-// ═══════ 공휴일 ═══════
-
-export async function fetchHolidays(year: number, month: number) {
-  return apiFetchXml('/api/holiday', { year: String(year), month: String(month) });
-}
+// ═══════ 공휴일 (30일) ═══════
+export async function fetchHolidays(year: number, month: number) { return apiFetchXml('/api/holiday', { year: String(year), month: String(month) }, { cacheTtlMs: 1000 * 60 * 60 * 24 * 30 }); }
 
 // ═══════ 설정 (카카오맵 키) ═══════
+export async function fetchConfig(forceRefresh?: boolean) { return apiFetch<{ kakaoMapKey: string }>('/api/config', undefined, { useCache: false, forceRefresh }); }
 
-export async function fetchConfig() {
-  return apiFetch<{ kakaoMapKey: string }>('/api/config');
-}
-
-// ═══════ 대피소 (지진해일) ═══════
-
+// ═══════ 대피소 (지진해일) (7일) ═══════
 export async function fetchShelters(ctprvnNm: string, signguNm?: string, numOfRows = '100', pageNo = '1') {
   return apiFetch<any[]>('/api/shelter', { ctprvnNm, signguNm: signguNm || '', numOfRows, pageNo });
 }
-
-export async function fetchTsunamiShelters() {
-  // 공공데이터 서버가 Cloudflare 등 해외망 접근을 SSL 레벨(525)에서 차단하므로
-  // 미리 추출해둔 정적 JSON 데이터를 빌드에 아예 포함시킵니다. (경로 404 원천 차단)
-  return tsunamiData;
-}
+export async function fetchTsunamiShelters() { return tsunamiData; }
 
 // ═══════ 민방위대피시설 ═══════
+export async function fetchCivilShelters(_ctprvnNm: string, _sgnNm?: string) { return civilData; }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function fetchCivilShelters(_ctprvnNm: string, _sgnNm?: string) {
-  // 민방위 데이터 또한 공공데이터 포털의 SSL 차단 및 필터링 미지원 이슈로 정적 JSON을 사용합니다.
-  return civilData;
-}
-
-// ═══════ 다중이용업소 ═══════
-
+// ═══════ 다중이용업소 (7일) ═══════
 export async function fetchMultiUseFacilities(ctprvnNm: string, signguNm?: string) {
   return apiFetch<any[]>('/api/multiuse', { ctprvnNm, signguNm: signguNm || '' });
 }
 
-// ═══════ 구급통계 ═══════
-
-export async function fetchEmergencyStats(op: string, params?: Record<string, string>) {
-  return apiFetch<{ items: any[]; totalCount: number }>(`/api/emergency/stats/${op}`, params);
+// ═══════ 구급통계 (7일) ═══════
+export async function fetchEmergencyStats(op: string, params?: Record<string, string>, forceRefresh?: boolean) {
+  return apiFetch<{ items: any[]; totalCount: number }>(`/api/emergency/stats/${op}`, params, { forceRefresh });
 }
 
-// ═══════ 구급정보 ═══════
-
-export async function fetchEmergencyInfo(op: string, params?: Record<string, string>) {
-  return apiFetch<{ items: any[]; totalCount: number }>(`/api/emergency/info/${op}`, params);
+// ═══════ 구급정보 (7일) ═══════
+export async function fetchEmergencyInfo(op: string, params?: Record<string, string>, forceRefresh?: boolean) {
+  return apiFetch<{ items: any[]; totalCount: number }>(`/api/emergency/info/${op}`, params, { forceRefresh });
 }
 
-// ═══════ 화재정보 ═══════
-
-export async function fetchFireInfo(op: string, params?: Record<string, string>) {
-  return apiFetch<{ items: any[]; totalCount: number }>(`/api/fire/${op}`, params);
+// ═══════ 화재정보 (TTL 30분 - 실시간) ═══════
+export async function fetchFireInfo(op: string, params?: Record<string, string>, forceRefresh?: boolean) {
+  return apiFetch<{ items: any[]; totalCount: number }>(`/api/fire/${op}`, params, { cacheTtlMs: 1000 * 60 * 30, forceRefresh });
 }
 
-// ═══════ 특정소방대상물 (숙박시설 + 소방시설) ═══════
-
-export async function fetchFireObjectAccom(ctpvNm: string, numOfRows = '100', pageNo = '1') {
-  return apiFetch<{ items: any[]; totalCount: number }>('/api/fire-object/accom', { ctpvNm, numOfRows, pageNo });
+// ═══════ 특정소방대상물 (7일) ═══════
+export async function fetchFireObjectAccom(ctpvNm: string, numOfRows = '100', pageNo = '1', forceRefresh?: boolean) {
+  return apiFetch<{ items: any[]; totalCount: number }>('/api/fire-object/accom', { ctpvNm, numOfRows, pageNo }, { forceRefresh });
+}
+export async function fetchFireObjectFireSys(ctpvNm: string, numOfRows = '100', pageNo = '1', forceRefresh?: boolean) {
+  return apiFetch<{ items: any[]; totalCount: number }>('/api/fire-object/fire-sys', { ctpvNm, numOfRows, pageNo }, { forceRefresh });
 }
 
-export async function fetchFireObjectFireSys(ctpvNm: string, numOfRows = '100', pageNo = '1') {
-  return apiFetch<{ items: any[]; totalCount: number }>('/api/fire-object/fire-sys', { ctpvNm, numOfRows, pageNo });
+// ═══════ 지역별 화재피해 현황 (1일) ═══════
+export interface FireDamageItem { ocrnYmdhh: string; gutFsttOgidNm: string; deadPercnt: string; injrdprPercnt: string; prptDmgSbttAmt: string; lawAddrName: string; }
+export interface FireDamageResponse { items: FireDamageItem[]; totalCount: number; pageNo: number; numOfRows: number; error?: string; errorCode?: string; }
+export async function fetchFireDamage(params?: { pageNo?: string; numOfRows?: string; lawAddrName?: string; }, forceRefresh?: boolean): Promise<FireDamageResponse> {
+  return apiFetch<FireDamageResponse>('/api/fire-damage', params, { cacheTtlMs: 1000 * 60 * 60 * 24, forceRefresh });
 }
 
-// ═══════ 지역별 화재피해 현황 ═══════
+// ═══════ 연간화재통계 (30일) ═══════
+export interface AnnualFireStatsResponse { year: string; totalRecords: number; summary: { totalFires: number; totalDeaths: number; totalInjuries: number; totalCasualties: number; totalPropertyDamage: number; }; bySido: { name: string; count: number }[]; byFireType: { name: string; count: number }[]; byPlace: { name: string; count: number }[]; byCause: { name: string; count: number }[]; byMonth: { month: string; count: number }[]; casualtiesBySido: { name: string; deaths: number; injuries: number }[]; }
 
-export interface FireDamageItem {
-  ocrnYmdhh: string;       // 발생일자
-  gutFsttOgidNm: string;   // 출동소방서
-  deadPercnt: string;       // 사망자 인원수
-  injrdprPercnt: string;    // 부상자 인원수
-  prptDmgSbttAmt: string;  // 재산피해소계금액(천원)
-  lawAddrName: string;      // 법정동주소(읍면동)
-}
-
-export interface FireDamageResponse {
-  items: FireDamageItem[];
-  totalCount: number;
-  pageNo: number;
-  numOfRows: number;
-  error?: string;
-  errorCode?: string;
-}
-
-export async function fetchFireDamage(params?: {
-  pageNo?: string;
-  numOfRows?: string;
-  lawAddrName?: string;
-}): Promise<FireDamageResponse> {
-  return apiFetch<FireDamageResponse>('/api/fire-damage', params);
-}
-
-// ═══════ 연간화재통계 ═══════
-
-export interface AnnualFireStatsResponse {
-  year: string;
-  totalRecords: number;
-  summary: {
-    totalFires: number;
-    totalDeaths: number;
-    totalInjuries: number;
-    totalCasualties: number;
-    totalPropertyDamage: number;
-  };
-  bySido: { name: string; count: number }[];
-  byFireType: { name: string; count: number }[];
-  byPlace: { name: string; count: number }[];
-  byCause: { name: string; count: number }[];
-  byMonth: { month: string; count: number }[];
-  casualtiesBySido: { name: string; deaths: number; injuries: number }[];
-}
-
-export async function fetchAnnualFireStats(year: string): Promise<AnnualFireStatsResponse> {
-  // 대량 데이터 집계이므로 30초 타임아웃
-  return apiFetch<AnnualFireStatsResponse>(`/api/fire-annual/${year}`, undefined, 30_000);
+export async function fetchAnnualFireStats(year: string, forceRefresh?: boolean): Promise<AnnualFireStatsResponse> {
+  return apiFetch<AnnualFireStatsResponse>(`/api/fire-annual/${year}`, undefined, { timeoutMs: 30_000, cacheTtlMs: 1000 * 60 * 60 * 24 * 30, forceRefresh });
 }

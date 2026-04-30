@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchPolicyNews, type NewsItem } from '../services/newsApi';
+
+const stripHtml = (value: string | undefined) => (value || '').replace(/<[^>]*>/g, '');
 
 type PolicyCategory = 'assembly' | 'nfa' | 'mois' | 'mohw' | 'default';
 
@@ -14,50 +16,141 @@ const getPolicyCategory = (source: string = '', title: string = ''): PolicyCateg
 const categoryTheme = {
   assembly: {
     gradient: "from-purple-500 to-indigo-500",
+    titleHover: "group-hover:from-purple-500 group-hover:to-indigo-500",
     icon: "account_balance",
     iconColor: "text-purple-500/10 dark:text-purple-400/5",
     badge: "border-purple-500/30 text-purple-700 dark:text-purple-400 bg-purple-500/10",
   },
   nfa: {
     gradient: "from-red-500 to-orange-500",
+    titleHover: "group-hover:from-red-500 group-hover:to-orange-500",
     icon: "local_fire_department",
     iconColor: "text-red-500/10 dark:text-red-400/5",
     badge: "border-red-500/30 text-red-700 dark:text-red-400 bg-red-500/10",
   },
   mois: {
     gradient: "from-blue-500 to-sky-500",
+    titleHover: "group-hover:from-blue-500 group-hover:to-sky-500",
     icon: "admin_panel_settings",
     iconColor: "text-blue-500/10 dark:text-blue-400/5",
     badge: "border-blue-500/30 text-blue-700 dark:text-blue-400 bg-blue-500/10",
   },
   mohw: {
     gradient: "from-emerald-500 to-teal-500",
+    titleHover: "group-hover:from-emerald-500 group-hover:to-teal-500",
     icon: "health_and_safety",
     iconColor: "text-emerald-500/10 dark:text-emerald-400/5",
     badge: "border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10",
   },
   default: {
     gradient: "from-gray-600 to-gray-400 dark:from-gray-400 dark:to-gray-600",
+    titleHover: "group-hover:from-gray-600 group-hover:to-gray-400 dark:group-hover:from-gray-400 dark:group-hover:to-gray-600",
     icon: "gavel",
     iconColor: "text-on-surface/5",
     badge: "border-outline-variant text-on-surface-variant bg-surface-variant/30",
   }
 };
 
+function PolicyVisualFallback({
+  theme,
+  isHero,
+}: {
+  theme: typeof categoryTheme[keyof typeof categoryTheme];
+  isHero: boolean;
+}) {
+  return (
+    <div
+      className={`
+        relative z-10 overflow-hidden bg-gradient-to-br ${theme.gradient} shrink-0 flex items-center justify-center
+        ${isHero
+          ? 'w-full md:w-1/2 h-64 md:h-auto border-b md:border-b-0 md:border-r border-outline-variant/20'
+          : 'w-full h-48 sm:h-44 border-b border-outline-variant/20'}
+      `}
+    >
+      <span
+        className="material-symbols-outlined text-white/80 text-[72px]"
+        style={{ fontVariationSettings: "'FILL' 1" }}
+      >
+        {theme.icon}
+      </span>
+    </div>
+  );
+}
+
+function SafeNewsImage({
+  src,
+  isHero,
+  theme,
+}: {
+  src?: string;
+  isHero: boolean;
+  theme: typeof categoryTheme[keyof typeof categoryTheme];
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    return <PolicyVisualFallback theme={theme} isHero={isHero} />;
+  }
+
+  return (
+    <div
+      className={`
+        relative z-10 overflow-hidden bg-surface-container shrink-0
+        ${isHero
+          ? 'w-full md:w-1/2 h-64 md:h-auto border-b md:border-b-0 md:border-r border-outline-variant/20'
+          : 'w-full h-48 sm:h-44 border-b border-outline-variant/20'}
+      `}
+    >
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+        onError={() => setFailed(true)}
+      />
+
+      {isHero && (
+        <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface-container-lowest to-transparent hidden md:block" />
+      )}
+    </div>
+  );
+}
+
 export default function PolicyDashboard() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestSeqRef = useRef(0);
 
-  const loadNews = async (forceRefresh = false) => {
+  const loadNews = useCallback(async (forceRefresh = false) => {
+    const seq = ++requestSeqRef.current;
     setLoading(true);
-    const data = await fetchPolicyNews(forceRefresh);
-    setNews(data);
-    setLoading(false);
-  };
+    setError('');
+    
+    try {
+      const data = await fetchPolicyNews(forceRefresh);
+      if (seq !== requestSeqRef.current) return;
+      setNews(data);
+    } catch (err) {
+      if (seq !== requestSeqRef.current) return;
+      console.warn('[PolicyDashboard] failed:', err);
+      setNews([]);
+      setError('정책 정보를 불러오지 못했습니다.');
+    } finally {
+      if (seq === requestSeqRef.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     loadNews();
-  }, []);
+  }, [loadNews]);
 
   return (
     <div className="space-y-6">
@@ -67,18 +160,26 @@ export default function PolicyDashboard() {
             <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>gavel</span>
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-on-surface font-headline">정부 정책 및 입법 동향</h1>
-            <p className="text-sm text-on-surface-variant font-medium mt-1">소방청, 행정안전부, 보건복지부 지침 및 국회 입법예고</p>
+            <h1 className="text-2xl font-extrabold text-on-surface font-headline">소방 정책·입법 동향</h1>
+            <p className="text-sm text-on-surface-variant font-medium mt-1">소방청·행정안전부·보건복지부 및 국회 관련 소식</p>
           </div>
         </div>
         <button 
+          type="button"
           onClick={() => loadNews(true)}
-          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm"
+          disabled={loading}
+          className="p-2 rounded-full bg-surface-variant text-on-surface hover:bg-surface-tint hover:text-white transition-colors flex items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           title="새로고침"
         >
-          <span className={`material-symbols-outlined ${loading && news.length === 0 ? 'animate-spin' : ''}`}>refresh</span>
+          <span className={`material-symbols-outlined ${loading ? 'animate-spin' : ''}`}>refresh</span>
         </button>
       </div>
+
+      {error && !loading && (
+        <div className="p-4 rounded-xl bg-error/10 border border-error/30 text-error text-sm font-bold mb-6">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -113,30 +214,11 @@ export default function PolicyDashboard() {
                 {/* 하이테크 상단 글로우 바 */}
                 <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.gradient} opacity-50 group-hover:opacity-100 transition-opacity`}></div>
 
-                {/* 이미지 영역 (있을 경우만) */}
-                {item.imageUrl && (
-                  <div className={`
-                    relative z-10 overflow-hidden bg-surface-container shrink-0
-                    ${isHero ? 'w-full md:w-1/2 h-64 md:h-auto border-b md:border-b-0 md:border-r border-outline-variant/20' : 'w-full h-48 sm:h-44 border-b border-outline-variant/20'}
-                  `}>
-                    <img 
-                      src={item.imageUrl} 
-                      alt="" 
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                      onError={(e) => {
-                        e.currentTarget.parentElement!.style.display = 'none';
-                      }}
-                    />
-                    {/* 데스크톱 영웅 카드용 이너 오버레이 (텍스트로 넘어가는 경계 부드럽게) */}
-                    {isHero && (
-                      <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface-container-lowest to-transparent hidden md:block"></div>
-                    )}
-                  </div>
-                )}
+                {/* 이미지 영역 (fallback 지원) */}
+                <SafeNewsImage src={item.imageUrl} isHero={isHero} theme={theme} />
 
                 {/* 콘텐츠 영역 */}
-                <div className={`p-6 md:p-8 flex-1 flex flex-col relative z-20 ${isHero && !item.imageUrl ? 'justify-center' : ''}`}>
+                <div className={`p-6 md:p-8 flex-1 flex flex-col relative z-20`}>
                   
                   {/* 거대 백그라운드 워터마크 마이크로 인터랙션 */}
                   <span className={`material-symbols-outlined absolute pointer-events-none z-0 ${theme.iconColor} transform -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${isHero ? '-bottom-10 -right-10 text-[200px]' : '-bottom-6 -right-6 text-[120px]'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -159,15 +241,17 @@ export default function PolicyDashboard() {
                   <h3 className={`
                     font-extrabold text-on-surface leading-tight tracking-tight mb-4 relative z-10
                     ${isHero ? 'text-[22px] md:text-[28px]' : 'text-[18px] line-clamp-3'}
-                    group-hover:bg-clip-text group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:${theme.gradient} transition-all duration-300
-                  `} dangerouslySetInnerHTML={{ __html: item.title }} />
+                    group-hover:bg-clip-text group-hover:text-transparent group-hover:bg-gradient-to-r ${theme.titleHover} transition-all duration-300
+                  `}>
+                    {stripHtml(item.title)}
+                  </h3>
                   
                   {/* 본문 설명 */}
                   <p className={`
                     text-on-surface-variant font-medium leading-relaxed relative z-10 opacity-80
                     ${isHero ? 'text-[15px] line-clamp-4' : 'text-[14px] line-clamp-2'}
                   `}>
-                    {item.description}
+                    {stripHtml(item.description)}
                   </p>
 
                   {/* 하단 바로가기 (모던 버튼) */}

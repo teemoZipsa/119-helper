@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FieldAssessment from './FieldAssessment';
 import RadioCodes from './RadioCodes';
 import SOPChecklist from './SOPChecklist';
@@ -11,8 +11,14 @@ const SUB_TABS: { id: SubTab; label: string; icon: string }[] = [
   { id: 'sop', label: 'SOP 체크리스트', icon: 'checklist' },
 ];
 
-export default function ManualView() {
+export default function ManualView({ subId }: { subId?: string }) {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('assessment');
+
+  useEffect(() => {
+    if (subId === 'radio') setActiveSubTab('radio');
+    if (subId === 'sop') setActiveSubTab('sop');
+    if (subId === 'assessment') setActiveSubTab('assessment');
+  }, [subId]);
 
   return (
     <div className="space-y-6">
